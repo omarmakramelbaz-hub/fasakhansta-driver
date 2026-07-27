@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "224648167390",
+    "project_id": "fasakhaninjatest",
+    "storage_bucket": "fasakhaninjatest.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:224648167390:android:b6dae5b50289340e56274f",
+        "android_client_info": {
+          "package_name": "com.smartvesion.fasakhaninja_delegate"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9c9vLzy5vq0ZCpSJQn54bMPcNfaM-lbI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:224648167390:android:d4d87f98dfe5ddf556274f",
+        "android_client_info": {
+          "package_name": "com.smartvision.faskhanista"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9c9vLzy5vq0ZCpSJQn54bMPcNfaM-lbI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

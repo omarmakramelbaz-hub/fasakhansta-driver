@@ -1,0 +1,34 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../view/custom_widgets/custom_payment_web_view/custom_payment_web_view.dart';
+import '../../view/custom_widgets/zoom_image/zoom_image_screen.dart';
+import '../../view/global/chat/screen/admin_chat_screen.dart';
+import '../../view/global/chat/screen/chat_screen.dart';
+import '../../view/layout/auth/screen/contract_delivery_screen.dart';
+import '../../view/layout/auth/screen/create_new_password_screen.dart';
+import '../../view/layout/auth/screen/forget_password_screen.dart';
+import '../../view/layout/auth/screen/login_screen.dart';
+import '../../view/layout/auth/screen/password_changed_successfully_screen.dart';
+import '../../view/layout/auth/screen/regester_screen.dart';
+import '../../view/layout/auth/screen/verification_code_screen.dart';
+import '../../view/layout/delegate_bottom_nav_bar.dart/screen/delegate_bottom_nav_bar_screen.dart';
+import '../../view/layout/home/screen/location_delegate.dart';
+import '../../view/layout/my_account/controller/delegate_account_controller.dart';
+import '../../view/layout/my_account/controller/my_account_controller.dart';
+import '../../view/layout/my_account/screen/change_password_delegate_screen.dart';
+import '../../view/layout/my_account/screen/contact_us_screen.dart';
+import '../../view/layout/my_account/screen/delegate_reports_screen.dart';
+import '../../view/layout/my_account/screen/help_screen.dart';
+import '../../view/layout/my_account/screen/personal_information_delgate_screen.dart';
+import '../../view/layout/my_account/screen/privacy_policy_screen.dart';
+import '../../view/layout/my_account/screen/terms_and_conditions_screen.dart';
+import '../../view/layout/notification/controller/notifications_delegate_Controller.dart';
+import '../../view/layout/order/screen/current_orders_delegate_screen.dart';
+import '../../view/layout/order/screen/delivery_location_screen.dart';
+import '../../view/layout/order/screen/order_details_delegate_screen.dart';
+import '../../view/layout/screen/splash_screen.dart';
+import '../../view/layout/wallet/controller/wallet_controller.dart';
+import '../../view/layout/wallet/screen/wallet_screen.dart';
+
+part 'app_routers.dart';
