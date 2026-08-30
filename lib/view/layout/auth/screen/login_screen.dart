@@ -59,72 +59,85 @@ class _LoginScreenState extends State<LoginScreen> with ValidationMixin {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          const Positioned.fill(
-            child: IgnorePointer(child: CustomPaint(painter: _LoginBackgroundPainter())),
-          ),
-          SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
+      resizeToAvoidBottomInset: true,
+      body: LayoutBuilder(
+        builder: (context, viewport) {
+          final compact = viewport.maxHeight < 860;
+          final veryCompact = viewport.maxHeight < 740;
+          final logoSize = veryCompact ? 100.0 : (compact ? 122.0 : 150.0);
+
+          return Stack(
+            children: [
+              const Positioned.fill(
+                child: IgnorePointer(child: CustomPaint(painter: _LoginBackgroundPainter())),
+              ),
+              SafeArea(
+                child: SingleChildScrollView(
                   keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: EdgeInsets.fromLTRB(
                     18,
+                    veryCompact ? 2 : 6,
                     18,
-                    18,
-                    MediaQuery.viewInsetsOf(context).bottom + 42,
+                    MediaQuery.viewInsetsOf(context).bottom + (veryCompact ? 16 : 28),
                   ),
                   child: Center(
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 520),
+                      constraints: BoxConstraints(
+                        maxWidth: 520,
+                        minHeight: viewport.maxHeight - MediaQuery.paddingOf(context).vertical - 34,
+                      ),
                       child: Form(
                         key: _formKey,
                         child: Column(
+                          mainAxisAlignment: MainAxisAlignment.start,
                           children: [
-                            const SizedBox(height: 6),
                             Image.asset(
                               AppImages.appIcon,
-                              width: 174,
-                              height: 174,
+                              width: logoSize,
+                              height: logoSize,
                               fit: BoxFit.contain,
                               filterQuality: FilterQuality.high,
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: veryCompact ? 0 : 2),
                             Text(
                               _isArabic ? 'مرحباً بك' : 'Welcome',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: navy,
-                                fontSize: 31,
-                                height: 1.15,
+                                fontSize: veryCompact ? 25 : (compact ? 27 : 30),
+                                height: 1.1,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            SizedBox(height: veryCompact ? 4 : 7),
                             Text(
                               AppLocaleKey.welcomePleaseEnterYourAccountDetails.tr(),
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: softText,
-                                fontSize: 17,
-                                height: 1.5,
+                                fontSize: veryCompact ? 13.5 : (compact ? 14.5 : 16),
+                                height: 1.35,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            const SizedBox(height: 28),
+                            SizedBox(height: veryCompact ? 10 : (compact ? 14 : 20)),
                             Container(
                               width: double.infinity,
-                              padding: const EdgeInsets.fromLTRB(22, 25, 22, 24),
+                              padding: EdgeInsets.fromLTRB(
+                                compact ? 17 : 20,
+                                compact ? 16 : 21,
+                                compact ? 17 : 20,
+                                compact ? 16 : 20,
+                              ),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(.97),
-                                borderRadius: BorderRadius.circular(30),
-                                border: Border.all(color: const Color(0xffF0F1F3)),
+                                color: Colors.white.withOpacity(.975),
+                                borderRadius: BorderRadius.circular(compact ? 25 : 28),
+                                border: Border.all(color: const Color(0xffEEF0F2)),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xff082A4D).withOpacity(.08),
-                                    blurRadius: 32,
-                                    offset: const Offset(0, 12),
+                                    color: navy.withOpacity(.075),
+                                    blurRadius: compact ? 22 : 30,
+                                    offset: const Offset(0, 10),
                                   ),
                                 ],
                               ),
@@ -133,80 +146,83 @@ class _LoginScreenState extends State<LoginScreen> with ValidationMixin {
                                 children: [
                                   Text(
                                     AppLocaleKey.mobileNumber.tr(),
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: navy,
-                                      fontSize: 17,
+                                      fontSize: compact ? 15.5 : 17,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
-                                  const SizedBox(height: 5),
+                                  const SizedBox(height: 3),
                                   Text(
                                     _isArabic
                                         ? 'يرجى إدخال الرقم بدون الـ 0'
                                         : 'Please enter the number without the leading 0',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: softText,
-                                      fontSize: 13.5,
+                                      fontSize: compact ? 12.5 : 13.5,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
-                                  const SizedBox(height: 11),
+                                  SizedBox(height: compact ? 7 : 10),
                                   CustomFormField(
                                     controller: _mobileEc,
                                     validator: (v) => validatePhone(v, country: _country),
                                     keyboardType: TextInputType.phone,
                                     textDirection: ui.TextDirection.ltr,
                                     hintText: '10XXXXXXXX',
-                                    radius: 17,
+                                    radius: 16,
                                     hasShadow: false,
-                                    contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 13),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      vertical: compact ? 12 : 14,
+                                      horizontal: 12,
+                                    ),
                                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                     prefixIcon: Padding(
-                                      padding: const EdgeInsetsDirectional.only(start: 14, end: 8),
+                                      padding: const EdgeInsetsDirectional.only(start: 12, end: 7),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Text(
                                             '${_country?.flagEmoji ?? '🇪🇬'}  +${_country?.phoneCode ?? '20'}',
                                             textDirection: ui.TextDirection.ltr,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               color: navy,
-                                              fontSize: 17,
+                                              fontSize: compact ? 15.5 : 17,
                                               fontWeight: FontWeight.w700,
                                             ),
                                           ),
-                                          const SizedBox(width: 10),
-                                          Container(width: 1, height: 26, color: const Color(0xffE1E3E7)),
-                                          const SizedBox(width: 2),
+                                          const SizedBox(width: 8),
+                                          Container(width: 1, height: 24, color: const Color(0xffE1E3E7)),
                                         ],
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: 22),
+                                  SizedBox(height: compact ? 12 : 17),
                                   Text(
                                     AppLocaleKey.password.tr(),
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: navy,
-                                      fontSize: 17,
+                                      fontSize: compact ? 15.5 : 17,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
-                                  const SizedBox(height: 10),
+                                  SizedBox(height: compact ? 7 : 9),
                                   CustomFormField(
                                     controller: _passwordEc,
-                                    title: null,
                                     isPassword: true,
                                     textDirection: ui.TextDirection.ltr,
-                                    radius: 17,
+                                    radius: 16,
                                     hasShadow: false,
-                                    contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 13),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      vertical: compact ? 12 : 14,
+                                      horizontal: 12,
+                                    ),
                                     prefixIcon: const Icon(
                                       Icons.lock_outline_rounded,
-                                      size: 21,
+                                      size: 20,
                                       color: Color(0xffA8ADB5),
                                     ),
                                   ),
-                                  const SizedBox(height: 6),
                                   Align(
                                     alignment: _isArabic ? Alignment.centerRight : Alignment.centerLeft,
                                     child: TextButton(
@@ -215,50 +231,51 @@ class _LoginScreenState extends State<LoginScreen> with ValidationMixin {
                                       },
                                       style: TextButton.styleFrom(
                                         foregroundColor: AppColor.mainAppColor(context),
-                                        padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 0),
+                                        padding: EdgeInsets.only(top: compact ? 4 : 6, bottom: compact ? 3 : 5),
+                                        minimumSize: Size.zero,
                                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                       ),
                                       child: Text(
                                         _isArabic ? 'نسيت كلمة المرور؟' : 'Forgot password?',
                                         style: TextStyle(
                                           color: AppColor.mainAppColor(context),
-                                          fontSize: 14.5,
+                                          fontSize: compact ? 13.5 : 14.5,
                                           fontWeight: FontWeight.w700,
                                         ),
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: 19),
+                                  SizedBox(height: compact ? 10 : 15),
                                   CustomButton(
-                                    height: 58,
-                                    radius: 18,
+                                    height: compact ? 51 : 56,
+                                    radius: 17,
                                     hasShadow: true,
                                     text: AppLocaleKey.login.tr(),
                                     suffixIcon: const Icon(
                                       Icons.login_rounded,
                                       color: Colors.white,
-                                      size: 23,
+                                      size: 21,
                                     ),
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: Colors.white,
-                                      fontSize: 19,
+                                      fontSize: compact ? 17 : 19,
                                       fontWeight: FontWeight.w800,
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: AppColor.mainAppColor(context).withOpacity(.26),
-                                        blurRadius: 18,
-                                        offset: const Offset(0, 8),
+                                        color: AppColor.mainAppColor(context).withOpacity(.24),
+                                        blurRadius: 16,
+                                        offset: const Offset(0, 7),
                                       ),
                                     ],
                                     onPressed: _login,
                                   ),
-                                  const SizedBox(height: 25),
+                                  SizedBox(height: compact ? 14 : 20),
                                   Row(
                                     children: [
                                       const Expanded(child: Divider(color: Color(0xffE4E6E9), height: 1)),
                                       Container(
-                                        margin: const EdgeInsets.symmetric(horizontal: 9),
+                                        margin: const EdgeInsets.symmetric(horizontal: 8),
                                         width: 5,
                                         height: 5,
                                         decoration: const BoxDecoration(
@@ -269,41 +286,49 @@ class _LoginScreenState extends State<LoginScreen> with ValidationMixin {
                                       const Expanded(child: Divider(color: Color(0xffE4E6E9), height: 1)),
                                     ],
                                   ),
-                                  const SizedBox(height: 20),
-                                  Wrap(
-                                    alignment: WrapAlignment.center,
-                                    crossAxisAlignment: WrapCrossAlignment.center,
-                                    spacing: 12,
-                                    runSpacing: 10,
+                                  SizedBox(height: compact ? 12 : 17),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Text(
-                                        _isArabic ? 'للتسجيل للمرة الأولى' : 'First time here?',
-                                        style: const TextStyle(
-                                          color: Color(0xff5F6670),
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      OutlinedButton.icon(
-                                        onPressed: _openRegistration,
-                                        icon: Icon(
-                                          Icons.person_add_alt_1_rounded,
-                                          color: AppColor.mainAppColor(context),
-                                          size: 21,
-                                        ),
-                                        label: Text(
-                                          _isArabic ? 'إنشاء حساب جديد' : 'Create new account',
+                                      Flexible(
+                                        child: Text(
+                                          _isArabic ? 'للتسجيل للمرة الأولى' : 'First time here?',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
-                                            color: AppColor.mainAppColor(context),
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w800,
+                                            color: const Color(0xff5F6670),
+                                            fontSize: compact ? 13.5 : 15,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
-                                        style: OutlinedButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 13),
-                                          side: BorderSide(color: AppColor.mainAppColor(context), width: 1.5),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                          backgroundColor: Colors.white,
+                                      ),
+                                      const SizedBox(width: 9),
+                                      Flexible(
+                                        child: OutlinedButton.icon(
+                                          onPressed: _openRegistration,
+                                          icon: Icon(
+                                            Icons.person_add_alt_1_rounded,
+                                            color: AppColor.mainAppColor(context),
+                                            size: compact ? 18 : 20,
+                                          ),
+                                          label: Text(
+                                            _isArabic ? 'إنشاء حساب جديد' : 'Create new account',
+                                            maxLines: 1,
+                                            style: TextStyle(
+                                              color: AppColor.mainAppColor(context),
+                                              fontSize: compact ? 13.5 : 14.5,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                          style: OutlinedButton.styleFrom(
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: compact ? 12 : 15,
+                                              vertical: compact ? 10 : 12,
+                                            ),
+                                            side: BorderSide(color: AppColor.mainAppColor(context), width: 1.4),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                            backgroundColor: Colors.white,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -311,16 +336,17 @@ class _LoginScreenState extends State<LoginScreen> with ValidationMixin {
                                 ],
                               ),
                             ),
+                            SizedBox(height: compact ? 72 : 92),
                           ],
                         ),
                       ),
                     ),
                   ),
-                );
-              },
-            ),
-          ),
-        ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -367,37 +393,37 @@ class _LoginBackgroundPainter extends CustomPainter {
     const orange = Color(0xffFD7201);
     const navy = Color(0xff082A4D);
 
-    final topGlow = Paint()..color = orange.withOpacity(.09);
-    final topAccent = Paint()..color = orange.withOpacity(.95);
-    final bottomOrange = Paint()..color = orange.withOpacity(.92);
+    final topGlow = Paint()..color = orange.withOpacity(.08);
+    final topAccent = Paint()..color = orange.withOpacity(.96);
+    final bottomOrange = Paint()..color = orange.withOpacity(.94);
     final bottomNavy = Paint()..color = navy;
 
     final glowPath = Path()
       ..moveTo(0, 0)
-      ..lineTo(size.width * .48, 0)
-      ..quadraticBezierTo(size.width * .27, 34, 0, 150)
+      ..lineTo(size.width * .52, 0)
+      ..quadraticBezierTo(size.width * .25, 32, 0, 142)
       ..close();
     canvas.drawPath(glowPath, topGlow);
 
     final topPath = Path()
       ..moveTo(0, 0)
       ..lineTo(size.width * .31, 0)
-      ..quadraticBezierTo(size.width * .16, 28, 0, 92)
+      ..quadraticBezierTo(size.width * .14, 25, 0, 84)
       ..close();
     canvas.drawPath(topPath, topAccent);
 
     final navyPath = Path()
-      ..moveTo(size.width * .40, size.height)
-      ..quadraticBezierTo(size.width * .72, size.height - 88, size.width, size.height - 118)
+      ..moveTo(size.width * .24, size.height)
+      ..quadraticBezierTo(size.width * .66, size.height - 80, size.width, size.height - 112)
       ..lineTo(size.width, size.height)
       ..close();
     canvas.drawPath(navyPath, bottomNavy);
 
     final orangePath = Path()
-      ..moveTo(size.width * .30, size.height)
-      ..quadraticBezierTo(size.width * .66, size.height - 105, size.width, size.height - 145)
-      ..lineTo(size.width, size.height - 125)
-      ..quadraticBezierTo(size.width * .70, size.height - 82, size.width * .44, size.height)
+      ..moveTo(size.width * .10, size.height)
+      ..quadraticBezierTo(size.width * .58, size.height - 96, size.width, size.height - 137)
+      ..lineTo(size.width, size.height - 111)
+      ..quadraticBezierTo(size.width * .68, size.height - 73, size.width * .33, size.height)
       ..close();
     canvas.drawPath(orangePath, bottomOrange);
   }
