@@ -1,0 +1,52 @@
+name: Delegate Flutter Web Build
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web_build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.0'
+          channel: stable
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Configure Flutter Web platform
+        run: flutter create . --platforms web --no-pub
+
+      - name: Configure Google Maps for Web
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          index = Path('web/index.html')
+          html = index.read_text(encoding='utf-8')
+          maps_script = '<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBDfirv6d7BiO-9YnsU5zCHEn9iM9iNtuM&libraries=places&language=ar&region=EG&v=weekly"></script>'
+          if 'maps.googleapis.com/maps/api/js' not in html:
+              html = html.replace('</head>', f'  {maps_script}\n</head>')
+              index.write_text(html, encoding='utf-8')
+          PY
+
+      - name: Build Flutter Web
+        run: flutter build web --release
+
+      - name: Upload Web Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fasakhansta-delegate-web
+          path: build/web
+          retention-days: 7
