@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -63,6 +64,16 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _initial() {
+    // GitHub Pages is a design/review build. Always enter the login screen on Web
+    // so a stale stored native session or an API/CORS failure cannot block startup.
+    if (kIsWeb) {
+      Future.delayed(const Duration(milliseconds: 450), () {
+        if (!mounted) return;
+        NavigatorMethods.pushNamedAndRemoveUntil(context, LoginScreen.routeName);
+      });
+      return;
+    }
+
     if (HiveMethods.getToken() != null) {
       context.read<AuthController>().initialProfile();
       _getData();
@@ -88,7 +99,6 @@ class _SplashScreenState extends State<SplashScreen> {
           NavigatorMethods.pushNamedAndRemoveUntil(
             context,
             LoginScreen.routeName,
-            // LoginScreen.routeName,
           );
         });
       },
