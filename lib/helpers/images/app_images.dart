@@ -27,7 +27,7 @@ class AppImages {
   static const String delegateAcceptOrderIcon = 'assets/svg/delegateAcceptOrderIcon.svg';
   // static const String delegateLogo2Icon = 'assets/svg/delegateLogo2Icon.svg';
   // static const String delegateCover = 'assets/images/delegateCover.png';
-  static const String lastSplash = 'aassets/images/logoOutPng.png';
+  static const String lastSplash = 'assets/images/logoOutPng.png';
   static const String delegateFinalLogoImage = 'assets/images/logoOutPng.png';
 
   // static const String languageIcon = 'assets/svg/languageIcon.svg';
