@@ -64,7 +64,8 @@ class _LoginScreenState extends State<LoginScreen> with ValidationMixin {
         builder: (context, viewport) {
           final compact = viewport.maxHeight < 860;
           final veryCompact = viewport.maxHeight < 740;
-          final logoSize = veryCompact ? 100.0 : (compact ? 122.0 : 150.0);
+          final logoSize = veryCompact ? 118.0 : (compact ? 150.0 : 182.0);
+          final topSpace = veryCompact ? 6.0 : (compact ? 12.0 : 18.0);
 
           return Stack(
             children: [
@@ -78,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen> with ValidationMixin {
                     18,
                     veryCompact ? 2 : 6,
                     18,
-                    MediaQuery.viewInsetsOf(context).bottom + (veryCompact ? 16 : 28),
+                    MediaQuery.viewInsetsOf(context).bottom + (veryCompact ? 16 : 24),
                   ),
                   child: Center(
                     child: ConstrainedBox(
@@ -91,6 +92,7 @@ class _LoginScreenState extends State<LoginScreen> with ValidationMixin {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.start,
                           children: [
+                            SizedBox(height: topSpace),
                             Image.asset(
                               AppImages.appIcon,
                               width: logoSize,
@@ -98,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen> with ValidationMixin {
                               fit: BoxFit.contain,
                               filterQuality: FilterQuality.high,
                             ),
-                            SizedBox(height: veryCompact ? 0 : 2),
+                            SizedBox(height: veryCompact ? 3 : (compact ? 5 : 8)),
                             Text(
                               _isArabic ? 'مرحباً بك' : 'Welcome',
                               textAlign: TextAlign.center,
@@ -336,7 +338,7 @@ class _LoginScreenState extends State<LoginScreen> with ValidationMixin {
                                 ],
                               ),
                             ),
-                            SizedBox(height: compact ? 72 : 92),
+                            SizedBox(height: veryCompact ? 26 : (compact ? 38 : 62)),
                           ],
                         ),
                       ),
