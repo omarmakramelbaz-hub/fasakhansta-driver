@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -17,9 +18,17 @@ import 'helpers/theme/theme_enum.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // The GitHub Pages build is only a browser preview for UI review.
+  // Keep native Firebase / messaging startup away from Web so unsupported
+  // mobile plugins cannot leave the preview stuck on the bootstrap screen.
+  if (!kIsWeb) {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  }
+
   await EasyLocalization.ensureInitialized();
   await initServers();
+
   runApp(
     EasyLocalization(
       supportedLocales: const [Locale('en'), Locale('ar')],
@@ -33,17 +42,29 @@ Future<void> main() async {
 }
 
 Future<void> initServers() async {
-  FirebaseMessaging.onBackgroundMessage(onAppBackground);
-  NotificationHelper().initialize();
+  if (!kIsWeb) {
+    FirebaseMessaging.onBackgroundMessage(onAppBackground);
+    NotificationHelper().initialize();
+  }
+
   await Hive.initFlutter();
-  Hive.registerAdapter(ThemeEnumAdapter());
+  if (!Hive.isAdapterRegistered(0)) {
+    Hive.registerAdapter(ThemeEnumAdapter());
+  }
   await Hive.openBox('app');
+
   timeago.setLocaleMessages('en', timeago.EnMessages());
   timeago.setLocaleMessages('en_short', timeago.EnShortMessages());
   timeago.setLocaleMessages('ar', timeago.ArMessages());
   timeago.setLocaleMessages('ar_short', timeago.ArShortMessages());
-  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
-  configureHttpOverrides();
+
+  if (!kIsWeb) {
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+    configureHttpOverrides();
+  }
 }
 
 Future<void> onAppBackground(RemoteMessage message) async => SoundNotification.instance.playSound();
