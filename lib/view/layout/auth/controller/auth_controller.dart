@@ -12,6 +12,8 @@ import '../../my_account/model/areas_model.dart';
 import '../model/profile_model.dart';
 
 class AuthController extends ChangeNotifier {
+  bool get _isGitHubPreview => kIsWeb && Uri.base.host.endsWith('github.io');
+
   ///                           profile                                     //
   void initialProfile() {
     _profileResponse = ApiResponse(state: ResponseState.sleep, data: null);
@@ -57,10 +59,9 @@ class AuthController extends ChangeNotifier {
   }) async {
     NavigatorMethods.loading();
 
-    // GitHub Pages is only a UI preview. Browser CORS/Pusher/Firebase behavior
-    // must not block access to the delegate screens while we review the UI.
-    // Native Android/iOS still use the real API login below.
-    if (kIsWeb) {
+    // Only GitHub Pages is a UI preview. Other web builds (including the
+    // production/server build) must use the real login flow.
+    if (_isGitHubPreview) {
       NavigatorMethods.loadingOff();
       onSuccess.call('delegate');
       notifyListeners();
@@ -68,14 +69,15 @@ class AuthController extends ChangeNotifier {
     }
 
     String fcmId = '';
-    try {
-      fcmId = await FirebaseMessaging.instance
-              .getToken()
-              .timeout(const Duration(seconds: 5)) ??
-          '';
-    } catch (_) {
-      // Login must not be blocked if FCM is temporarily unavailable.
-      fcmId = '';
+    if (!kIsWeb) {
+      try {
+        fcmId = await FirebaseMessaging.instance
+                .getToken()
+                .timeout(const Duration(seconds: 5)) ??
+            '';
+      } catch (_) {
+        fcmId = '';
+      }
     }
 
     FormData body = FormData.fromMap({
