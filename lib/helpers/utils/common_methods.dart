@@ -2,6 +2,7 @@ import 'package:bot_toast/bot_toast.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -182,14 +183,14 @@ class CommonMethods {
   }
 
   static Future<bool> hasConnection() async {
-    var connectivityResult = await (Connectivity().checkConnectivity());
-    if (connectivityResult.contains(ConnectivityResult.mobile)) {
-      return true;
-    } else if (connectivityResult.contains(ConnectivityResult.wifi)) {
-      return true;
-    } else {
-      return false;
-    }
+    // Browser connectivity detection is not equivalent to Android/iOS.
+    // The web implementation can report ethernet/other states, and treating
+    // anything except mobile/wifi as offline prevents every API call.
+    // Let the actual HTTP request determine reachability in web previews.
+    if (kIsWeb) return true;
+
+    final connectivityResult = await Connectivity().checkConnectivity();
+    return connectivityResult.any((result) => result != ConnectivityResult.none);
   }
 
   static List<CustomSelectItem> dropdownMenuItems = [
@@ -197,7 +198,7 @@ class CommonMethods {
       20,
       (index) => {
         'id': index,
-        'value': AppRouters.navigatorKey.currentContext!.apiTr(ar: 'العنصر ${index + 1}', en: 'Item ${index + 1}'),
+        'value': AppRouters.navigatorKey.currentContext!.apiTr(ar: 'العنصر ${index + 1}', en: 'The item ${index + 1}'),
       },
     ),
   ].map((e) => CustomSelectItem(value: int.tryParse(e['id'].toString()), name: e['value']?.toString() ?? '')).toList();
