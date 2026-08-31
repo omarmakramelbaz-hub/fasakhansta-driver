@@ -57,20 +57,25 @@ class AuthController extends ChangeNotifier {
   }) async {
     NavigatorMethods.loading();
 
-    // Firebase is intentionally not initialized in the GitHub Pages UI preview.
-    // Calling FirebaseMessaging.getToken() there leaves the login loader stuck.
-    // Use an empty FCM id on Web; native Android/iOS still sends the real token.
+    // GitHub Pages is only a UI preview. Browser CORS/Pusher/Firebase behavior
+    // must not block access to the delegate screens while we review the UI.
+    // Native Android/iOS still use the real API login below.
+    if (kIsWeb) {
+      NavigatorMethods.loadingOff();
+      onSuccess.call('delegate');
+      notifyListeners();
+      return;
+    }
+
     String fcmId = '';
-    if (!kIsWeb) {
-      try {
-        fcmId = await FirebaseMessaging.instance
-                .getToken()
-                .timeout(const Duration(seconds: 5)) ??
-            '';
-      } catch (_) {
-        // Login must not be blocked if FCM is temporarily unavailable.
-        fcmId = '';
-      }
+    try {
+      fcmId = await FirebaseMessaging.instance
+              .getToken()
+              .timeout(const Duration(seconds: 5)) ??
+          '';
+    } catch (_) {
+      // Login must not be blocked if FCM is temporarily unavailable.
+      fcmId = '';
     }
 
     FormData body = FormData.fromMap({
