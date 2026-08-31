@@ -23,6 +23,8 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  bool get _isGitHubPreview => kIsWeb && Uri.base.host.endsWith('github.io');
+
   @override
   void initState() {
     _initial();
@@ -64,9 +66,9 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _initial() {
-    // GitHub Pages is a design/review build. Always enter the login screen on Web
-    // so a stale stored native session or an API/CORS failure cannot block startup.
-    if (kIsWeb) {
+    // Only the GitHub Pages URL is a UI preview. A real server-hosted web build
+    // must use the same token/profile auth flow as the production app.
+    if (_isGitHubPreview) {
       Future.delayed(const Duration(milliseconds: 450), () {
         if (!mounted) return;
         NavigatorMethods.pushNamedAndRemoveUntil(context, LoginScreen.routeName);
@@ -87,15 +89,20 @@ class _SplashScreenState extends State<SplashScreen> {
 
   void _getData() {
     context.read<AuthController>().getProfile(
-      onHaveId: (id, token) =>
-          context.read<PusherController>().initPusher(channelName: 'private-user.$id', userId: id, token: token),
+      onHaveId: (id, token) {
+        if (!kIsWeb) {
+          context.read<PusherController>().initPusher(channelName: 'private-user.$id', userId: id, token: token);
+        }
+      },
       onSuccess: () {
         Future.delayed(const Duration(milliseconds: 2650), () {
+          if (!mounted) return;
           NavigatorMethods.pushNamedAndRemoveUntil(context, DelegateBottomNavBarScreen.routeName);
         });
       },
       onUnauthenticated: () {
         Future.delayed(const Duration(milliseconds: 2650), () {
+          if (!mounted) return;
           NavigatorMethods.pushNamedAndRemoveUntil(
             context,
             LoginScreen.routeName,
