@@ -53,6 +53,39 @@ jobs:
       - name: Build Flutter Web
         run: flutter build web --release --base-href "/fasakhansta-driver/"
 
+      - name: Disable stale service worker cache
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          index = Path('build/web/index.html')
+          html = index.read_text(encoding='utf-8')
+          no_cache = '''
+          <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+          <meta http-equiv="Pragma" content="no-cache" />
+          <meta http-equiv="Expires" content="0" />
+          <script>
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for (const registration of registrations) {
+                  registration.unregister();
+                }
+              });
+              if ('caches' in window) {
+                caches.keys().then(function(keys) {
+                  return Promise.all(keys.map(function(key) { return caches.delete(key); }));
+                });
+              }
+            }
+          </script>
+          '''
+          html = html.replace('</head>', no_cache + '\n</head>')
+          index.write_text(html, encoding='utf-8')
+
+          sw = Path('build/web/flutter_service_worker.js')
+          sw.write_text("self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(self.registration.unregister()));", encoding='utf-8')
+          PY
+
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
         with:
