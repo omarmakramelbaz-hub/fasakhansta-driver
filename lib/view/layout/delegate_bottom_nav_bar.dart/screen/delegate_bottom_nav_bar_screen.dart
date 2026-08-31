@@ -44,16 +44,19 @@ class DelegateBottomNavBarScreen extends StatefulWidget {
 class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen> {
   String? delegateAddress;
   PusherController? _pusherController;
+  FirebaseMessaging? _messaging;
+  NotificationHelper? _notificationHelper;
 
   @override
   void initState() {
     super.initState();
 
-    // Firebase Messaging and realtime hooks are native-runtime features in this
-    // project. The GitHub Pages build is only a UI preview, so do not touch
-    // them on web; doing so can throw before the first frame and leave a blank
-    // grey page.
+    // Keep native-only services completely uninitialized in the GitHub Pages
+    // preview. Merely evaluating FirebaseMessaging.instance can fail when
+    // Firebase was intentionally not initialized for web.
     if (!kIsWeb) {
+      _messaging = FirebaseMessaging.instance;
+      _notificationHelper = NotificationHelper();
       _initialNotification();
       _pusherController = context.read<PusherController>();
       _pusherController!.addEventListener('delegate.updated', _handleDelegateUpdated);
@@ -272,11 +275,11 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
     );
   }
 
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  final NotificationHelper _notificationHelper = NotificationHelper();
-
   void _initialNotification() {
-    _messaging.getInitialMessage().then((message) {
+    final messaging = _messaging;
+    if (messaging == null) return;
+
+    messaging.getInitialMessage().then((message) {
       if (message != null) {
         log('${message.notification?.title}');
         log('${message.notification?.body}');
@@ -289,7 +292,7 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
       log('${message.notification?.title}');
       log('${message.notification?.body}');
       log(message.data.toString());
-      _notificationHelper.display(message);
+      _notificationHelper?.display(message);
     });
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       SoundNotification.instance.stopSound();
@@ -298,8 +301,8 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
     _requestPermission();
   }
 
-  Future<NotificationSettings> _requestPermission() async {
-    return _messaging.requestPermission(
+  Future<NotificationSettings?> _requestPermission() async {
+    return _messaging?.requestPermission(
       alert: true,
       announcement: false,
       badge: true,
