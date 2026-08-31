@@ -3,6 +3,7 @@ import 'dart:developer';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gap/gap.dart';
@@ -42,31 +43,28 @@ class DelegateBottomNavBarScreen extends StatefulWidget {
 
 class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen> {
   String? delegateAddress;
-  late PusherController _pusherController; // Saved reference
+  PusherController? _pusherController;
 
   @override
   void initState() {
     super.initState();
-    _initialNotification();
 
-    // delegateAddress = context.watch<AuthController>().profile?.areaTitle ?? "";
-
-    // WidgetsBinding.instance.addPostFrameCallback((_) {
-    //   context.read<AuthController>().getProfile().then((value) {
-
-    //   });
-    // });
-    _pusherController = context.read<PusherController>();
-    _pusherController.addEventListener('delegate.updated', _handleDelegateUpdated);
+    // Firebase Messaging and realtime hooks are native-runtime features in this
+    // project. The GitHub Pages build is only a UI preview, so do not touch
+    // them on web; doing so can throw before the first frame and leave a blank
+    // grey page.
+    if (!kIsWeb) {
+      _initialNotification();
+      _pusherController = context.read<PusherController>();
+      _pusherController!.addEventListener('delegate.updated', _handleDelegateUpdated);
+    }
   }
 
   void _handleDelegateUpdated(PusherEvent event) {
     try {
-      // Decode the JSON data
       var jsonData = jsonDecode(event.data) as Map<String, dynamic>;
 
       if (mounted) {
-        // Safely access keys in jsonData
         var status = jsonData['order_id']['status']?.toString();
         var orderNo = jsonData['order_id']['order_no']?.toString();
         log('*************************************************************');
@@ -86,7 +84,7 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
 
   @override
   void dispose() {
-    _pusherController.removeEventListener('delegate.updated', _handleDelegateUpdated);
+    _pusherController?.removeEventListener('delegate.updated', _handleDelegateUpdated);
     super.dispose();
   }
 
@@ -127,10 +125,6 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
                                 style: AppTextStyle.text16BS(context).copyWith(color: AppColor.blackColor(context)),
                               ),
                             ),
-                            // const Gap(5),
-                            // const CustomImage(
-                            //     path: AppImages.arrowDownIcon,
-                            //     type: ImageType.svg)
                           ],
                         ),
                       ],
@@ -141,7 +135,6 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
               title: const SizedBox(),
               actions: const [Gap(10)],
             ),
-            // extendBody: true,
             resizeToAvoidBottomInset: false,
             body: [
               const HomeDelegateScreen(),
@@ -279,11 +272,6 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
     );
   }
 
-  // void _onTap(int index) {
-  //   setState(() {
-  //      controller.screenIndex  = index;
-  //   });
-  // }
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final NotificationHelper _notificationHelper = NotificationHelper();
 
@@ -305,7 +293,6 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
     });
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       SoundNotification.instance.stopSound();
-
       _onNotificationTaped(message);
     });
     _requestPermission();
@@ -329,10 +316,6 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
     final msg = json.encode(message.data);
     var body = json.decode(msg);
     final data = NotificationFromFirebaseMode.fromJson(body);
-    // NavigatorMethods.pushNamed(
-    //   AppRouters.navigatorKey.currentContext ?? context,
-    //   DelegateBottomNavBarScreen.routeName,
-    // );
     switch (data.notificationType.toString()) {
       case '1':
         NavigatorMethods.pushNamed(
@@ -360,7 +343,7 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
             orderId: data.orderId.toString(),
           ),
         );
-
+        break;
       case '10':
         NavigatorMethods.pushNamed(
           AppRouters.navigatorKey.currentContext!,
@@ -377,7 +360,7 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
             vendorDeviceToken: data.receiverDeviceToken.toString(),
           ),
         );
-      //! add 4 to chat
+        break;
       default:
         NavigatorMethods.pushNamed(
           AppRouters.navigatorKey.currentContext ?? context,
