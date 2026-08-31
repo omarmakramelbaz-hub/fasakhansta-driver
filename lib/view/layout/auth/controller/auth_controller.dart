@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../helpers/hive/hive_methods.dart';
@@ -56,9 +57,25 @@ class AuthController extends ChangeNotifier {
   }) async {
     NavigatorMethods.loading();
 
+    // Firebase is intentionally not initialized in the GitHub Pages UI preview.
+    // Calling FirebaseMessaging.getToken() there leaves the login loader stuck.
+    // Use an empty FCM id on Web; native Android/iOS still sends the real token.
+    String fcmId = '';
+    if (!kIsWeb) {
+      try {
+        fcmId = await FirebaseMessaging.instance
+                .getToken()
+                .timeout(const Duration(seconds: 5)) ??
+            '';
+      } catch (_) {
+        // Login must not be blocked if FCM is temporarily unavailable.
+        fcmId = '';
+      }
+    }
+
     FormData body = FormData.fromMap({
       'mobile': mobile,
-      'fcm_id': await FirebaseMessaging.instance.getToken() ?? '',
+      'fcm_id': fcmId,
       'password': password,
       'account_type': 'delegate',
     });
