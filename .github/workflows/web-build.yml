@@ -50,6 +50,20 @@ jobs:
               index.write_text(html, encoding='utf-8')
           PY
 
+      - name: Keep web preview inside delegate UI on 401
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          api = Path('lib/helpers/networking/api_helper.dart')
+          text = api.read_text(encoding='utf-8')
+          old = '''      case 401:\n        var responseJson = response.data;\n        Future.delayed(Duration.zero, () {\n          AppRouters.navigatorKey.currentState?.pushNamedAndRemoveUntil(LoginScreen.routeName, (route) => false);\n        });\n        return ApiResponse(state: ResponseState.unauthorized, data: responseJson);'''
+          new = '''      case 401:\n        var responseJson = response.data;\n        // GitHub Pages is a UI preview and intentionally bypasses real login.\n        // API calls can therefore return 401; do not treat that as logout on web.\n        if (!kIsWeb) {\n          Future.delayed(Duration.zero, () {\n            AppRouters.navigatorKey.currentState?.pushNamedAndRemoveUntil(LoginScreen.routeName, (route) => false);\n          });\n        }\n        return ApiResponse(state: ResponseState.unauthorized, data: responseJson);'''
+          if old not in text:
+              raise SystemExit('401 redirect block not found')
+          api.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+
       - name: Build Flutter Web
         run: flutter build web --release --base-href "/fasakhansta-driver/"
 
