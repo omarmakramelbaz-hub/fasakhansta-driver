@@ -94,7 +94,7 @@ class _LoginScreenState extends State<LoginScreen> with ValidationMixin {
                           children: [
                             SizedBox(height: topSpace),
                             Image.asset(
-                              AppImages.appIcon,
+                              'assets/images/delegate_login_fisher_logo.jpg',
                               width: logoSize,
                               height: logoSize,
                               fit: BoxFit.contain,
