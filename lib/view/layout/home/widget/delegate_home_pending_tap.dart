@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -12,8 +13,15 @@ class DelegatePendingTapList extends StatelessWidget {
   const DelegatePendingTapList({super.key, required this.homeDelegateController, required this.onSuccess});
   final HomeDelegateController homeDelegateController;
   final VoidCallback onSuccess;
+
+  bool get _isGitHubPreview => kIsWeb && Uri.base.host.endsWith('github.io');
+
   @override
   Widget build(BuildContext context) {
+    if (_isGitHubPreview) {
+      return const NoCurrentOrderWidget();
+    }
+
     return NotificationListener<ScrollNotification>(
       onNotification: (ScrollNotification notification) {
         if (notification.metrics.pixels == notification.metrics.maxScrollExtent &&
@@ -52,12 +60,10 @@ class DelegatePendingTapList extends StatelessWidget {
                   ),
                 );
               }),
-              //  SizedBox(height: MediaQuery.of(context).size.height * 0.25),
             ],
           ),
         ),
       ),
     );
-    // });
   }
 }
