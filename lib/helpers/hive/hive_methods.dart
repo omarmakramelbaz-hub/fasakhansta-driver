@@ -18,8 +18,8 @@ class HiveMethods {
     return _box.get('token');
   }
 
-  static void updateToken(String token) {
-    _box.put('token', token);
+  static Future<void> updateToken(String token) async {
+    await _box.put('token', token);
   }
 
   // static String? hasDelegateOrVendor() {
