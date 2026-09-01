@@ -11,7 +11,6 @@ import '../../../../helpers/images/app_images.dart';
 import '../../../../helpers/locale/app_locale_key.dart';
 import '../../../../helpers/pusher_service/pusher_controller.dart';
 import '../../../../helpers/theme/app_colors.dart';
-import '../../../../helpers/theme/app_text_style.dart';
 import '../../../../helpers/utils/navigator_methods.dart';
 import '../../../custom_widgets/custom_image/custom_image.dart';
 import '../../../custom_widgets/custom_loading/custom_shimmer.dart';
@@ -52,12 +51,12 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
 
   void _handleWalletUpdate(PusherEvent event) {
     try {
-      var jsonData = jsonDecode(event.data) as Map<String, dynamic>;
+      final jsonData = jsonDecode(event.data) as Map<String, dynamic>;
       log('Wallet updated: $jsonData');
-      String amount = jsonData['user_balance']?.toString() ?? '0';
+      final amount = jsonData['user_balance']?.toString() ?? '0';
       pusherWalletAmount = num.parse(amount).toStringAsFixed(2);
       if (mounted) {
-        context.read<AuthController>().getProfile().then((value) {
+        context.read<AuthController>().getProfile().then((_) {
           if (!mounted) return;
           setState(() {
             balance = context.read<AuthController>().profile?.balance;
@@ -83,37 +82,143 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        GestureDetector(
-          onTap: () => NavigatorMethods.pushNamed(context, WalletScreen.routeName),
-          child: Center(
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 10),
-              height: 150,
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => NavigatorMethods.pushNamed(context, WalletScreen.routeName),
+            borderRadius: BorderRadius.circular(26),
+            child: Ink(
               width: double.infinity,
+              height: 156,
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                color: AppColor.whiteColor(context),
-                boxShadow: [BoxShadow(color: AppColor.greyColor(context).withOpacity(0.2), offset: const Offset(0, 4), blurRadius: 10)],
+                borderRadius: BorderRadius.circular(26),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xff082A4D), Color(0xff123C65)],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xff082A4D).withOpacity(.20),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Stack(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(height: 15),
-                        Expanded(child: Row(children: [Text(AppLocaleKey.myCurrentBalance.tr(), style: AppTextStyle.text16MS(context)), const SizedBox(width: 5), SvgPicture.asset(AppImages.downIcon)])),
-                        const SizedBox(height: 15),
-                        balance == null
-                            ? CustomShimmer(height: 20, width: 100, radius: 4, shimmerColor: AppColor.mainAppColor(context))
-                            : Text(AppLocaleKey.pound.tr().replaceAll('{}', '${pusherWalletAmount ?? balance?.toStringAsFixed(0).toString()}'), style: AppTextStyle.text16BS(context)),
-                      ],
+                  Positioned(
+                    right: -24,
+                    top: -38,
+                    child: Container(
+                      width: 132,
+                      height: 132,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(.05),
+                      ),
                     ),
                   ),
-                  SvgPicture.asset(AppImages.walletIcon),
+                  Positioned(
+                    right: 35,
+                    bottom: -58,
+                    child: Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xffFD7201).withOpacity(.16),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  AppLocaleKey.myCurrentBalance.tr(),
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(.74),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Icon(Icons.arrow_outward_rounded, color: Colors.white.withOpacity(.65), size: 17),
+                              ],
+                            ),
+                            const SizedBox(height: 13),
+                            balance == null
+                                ? const CustomShimmer(
+                                    height: 26,
+                                    width: 120,
+                                    radius: 7,
+                                    shimmerColor: Color(0xffFF8A08),
+                                  )
+                                : Text(
+                                    AppLocaleKey.pound.tr().replaceAll(
+                                      '{}',
+                                      pusherWalletAmount ?? balance?.toStringAsFixed(0) ?? '0',
+                                    ),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 27,
+                                      height: 1.1,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                            const SizedBox(height: 9),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(.09),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.white.withOpacity(.10)),
+                              ),
+                              child: Text(
+                                context.locale.languageCode == 'ar' ? 'المحفظة الإلكترونية' : 'Digital wallet',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(.78),
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        width: 68,
+                        height: 68,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xffFF9A1A), Color(0xffFF6500)],
+                          ),
+                          borderRadius: BorderRadius.circular(22),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xffFD7201).withOpacity(.30),
+                              blurRadius: 18,
+                              offset: const Offset(0, 7),
+                            ),
+                          ],
+                        ),
+                        child: SvgPicture.asset(
+                          AppImages.walletIcon,
+                          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -134,19 +239,46 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
   }
 
   Widget _buildAlertContainer(BuildContext context, String message) {
-    return Column(children: [
-      InkWell(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         onTap: () => Navigator.pushNamed(context, WalletScreen.routeName),
-        child: Container(
-          padding: const EdgeInsets.all(9),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(4), color: AppColor.ffebbcColor(context)),
-          child: Row(children: [
-            const Card(elevation: 5, shape: OvalBorder(), child: Padding(padding: EdgeInsets.symmetric(horizontal: 15, vertical: 10), child: CustomImage(path: AppImages.infoIcon, type: ImageType.svg))),
-            const SizedBox(width: 8),
-            Flexible(child: Text(message, style: AppTextStyle.text14RS(context).copyWith(fontSize: 12))),
-          ]),
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            color: AppColor.ffebbcColor(context),
+            border: Border.all(color: const Color(0xffF6D98A)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(.85),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const CustomImage(path: AppImages.infoIcon, type: ImageType.svg),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Color(0xff66511F),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ]);
+    );
   }
 }
