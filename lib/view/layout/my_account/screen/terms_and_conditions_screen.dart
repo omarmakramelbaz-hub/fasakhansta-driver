@@ -4,8 +4,6 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../helpers/locale/app_locale_key.dart';
-import '../../../../helpers/theme/app_colors.dart';
-import '../../../../helpers/theme/app_text_style.dart';
 import '../../../custom_widgets/api_response_widget/api_response_widget.dart';
 import '../../../custom_widgets/custom_app_bar/custom_app_bar.dart';
 import '../controller/my_account_controller.dart';
@@ -16,77 +14,105 @@ class TermsAndConditionsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const navy = Color(0xff082A4D);
+    const softText = Color(0xff7D8490);
+
     return Scaffold(
+      backgroundColor: const Color(0xffF8F9FB),
       appBar: CustomAppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: AppColor.blackColor(context)),
-          onPressed: () {
-            Navigator.pop(context);
-          },
-        ),
-        appBarColor: AppColor.whiteColor(context),
         context,
-        height: 80,
-        centerTitle: false,
-        leadingPadding: 40,
-        title: Padding(
-          padding: const EdgeInsets.only(bottom: 40),
-          child: Text(AppLocaleKey.termsAndConditions.tr(), style: AppTextStyle.text20BS(context)),
+        height: 86,
+        title: Text(
+          AppLocaleKey.termsAndConditions.tr(),
+          style: const TextStyle(color: navy, fontSize: 21, fontWeight: FontWeight.w900),
         ),
       ),
       body: ChangeNotifierProvider(
-        create: (BuildContext context) {
-          return MyAccountController()
-            ..initialSetting()
-            ..getSetting();
-        },
-        child: SingleChildScrollView(
-          child: Consumer<MyAccountController>(
-            builder: (context, myAccountController, _) => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 40),
-                ApiResponseWidget(
-                  apiResponse: myAccountController.settingResponse,
-                  onReload: myAccountController.getSetting,
-                  isEmpty: myAccountController.setting == null,
-                  child: Container(
-                    width: MediaQuery.of(context).size.width,
-                    decoration: BoxDecoration(
-                      color: AppColor.whiteColor(context),
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(34),
-                        topRight: Radius.circular(34),
+        create: (_) => MyAccountController()
+          ..initialSetting()
+          ..getSetting(),
+        child: Consumer<MyAccountController>(
+          builder: (context, controller, _) {
+            return ApiResponseWidget(
+              apiResponse: controller.settingResponse,
+              onReload: controller.getSetting,
+              isEmpty: controller.setting == null,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
+                child: Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xffFFF7F0),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(color: const Color(0xffFFE0C5)),
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColor.greyColor(context).withOpacity(0.2),
-                          offset: const Offset(0, -3),
-                          blurRadius: 10,
-                        ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          const SizedBox(height: 24),
-                          Text(tr(AppLocaleKey.termsAndConditions), style: AppTextStyle.text16BS(context)),
-                          const SizedBox(height: 10),
-                          HtmlWidget(
-                            myAccountController.setting?.terms ?? '',
-                            textStyle: AppTextStyle.text18RS(context),
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(colors: [Color(0xffFF8A08), Color(0xffFF6500)]),
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            child: const Icon(Icons.gavel_rounded, color: Colors.white, size: 24),
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  AppLocaleKey.termsAndConditions.tr(),
+                                  style: const TextStyle(color: navy, fontSize: 16, fontWeight: FontWeight.w900),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  context.locale.languageCode == 'ar'
+                                      ? 'راجع الشروط المنظمة لاستخدام تطبيق المندوب'
+                                      : 'Review the terms governing use of the driver app',
+                                  style: const TextStyle(color: softText, fontSize: 12.5, height: 1.4, fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 14),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(25),
+                        border: Border.all(color: const Color(0xffECEEF1)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: navy.withOpacity(.055),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: HtmlWidget(
+                        controller.setting?.terms ?? '',
+                        textStyle: const TextStyle(
+                          color: Color(0xff414854),
+                          fontSize: 14,
+                          height: 1.75,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
