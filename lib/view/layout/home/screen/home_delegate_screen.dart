@@ -47,7 +47,13 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> with SingleTick
     final authController = context.read<AuthController>();
     _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (authController.profile?.photoProfile == '') {
+      final profile = authController.profile;
+      final hasMissingRequiredInfo =
+          profile != null &&
+          ((profile.name?.trim().isEmpty ?? true) ||
+              (profile.mobile?.trim().isEmpty ?? true));
+
+      if (hasMissingRequiredInfo) {
         CommonMethods.showCompleteInfoDialog(context: context);
       }
       _refreshData();
