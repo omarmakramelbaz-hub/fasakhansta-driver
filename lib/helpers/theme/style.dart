@@ -29,7 +29,7 @@ ThemeData appThemeData(BuildContext context) {
       brightness: brightness,
     ),
     appBarTheme: TextStyleTheme.appBar(context),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: Colors.white,
       elevation: 0,
       margin: EdgeInsets.zero,
@@ -51,7 +51,7 @@ ThemeData appThemeData(BuildContext context) {
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
       ),
     ),
-    dialogTheme: DialogTheme(
+    dialogTheme: DialogThemeData(
       backgroundColor: Colors.white,
       elevation: 18,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
