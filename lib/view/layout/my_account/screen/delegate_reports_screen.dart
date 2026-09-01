@@ -2,13 +2,9 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../../helpers/images/app_images.dart';
 import '../../../../helpers/locale/app_locale_key.dart';
-import '../../../../helpers/theme/app_colors.dart';
-import '../../../../helpers/theme/app_text_style.dart';
 import '../../../custom_widgets/api_response_widget/api_response_widget.dart';
 import '../../../custom_widgets/custom_app_bar/custom_app_bar.dart';
-import '../../../custom_widgets/custom_image/custom_image.dart';
 import '../../../custom_widgets/custom_table/custome_table.dart';
 import '../controller/delegate_account_controller.dart';
 import '../model/reports_model.dart';
@@ -22,302 +18,338 @@ class DelegateReportsScreen extends StatefulWidget {
 }
 
 class _DelegateReportsScreenState extends State<DelegateReportsScreen> {
-  final Key chartRendererKey = GlobalKey();
-
   String selectedTimeFrame = 'week';
   final List<String> timeFrames = ['day', 'week', 'month', 'year'];
 
   double calculateTotalOrderPrice(List<Orders> orders) {
-    double total = 0;
-    for (var order in orders) {
-      total += order.deliveryPrice ?? 0;
-    }
-    return total;
+    return orders.fold<double>(0, (total, order) => total + (order.deliveryPrice ?? 0));
   }
 
   @override
   Widget build(BuildContext context) {
+    const navy = Color(0xff082A4D);
+    const softText = Color(0xff7D8490);
+
     return ChangeNotifierProvider(
       create: (_) => DelegateAccountController()
         ..initialDelegateReports()
-        ..getDelegateReports(reportType: 'week'),
+        ..getDelegateReports(reportType: selectedTimeFrame),
       child: Consumer<DelegateAccountController>(
-        builder: (context, myAccountController, _) {
-          double totalOrderPrice = calculateTotalOrderPrice(myAccountController.reports?.orders ?? []);
+        builder: (context, controller, _) {
+          final reports = controller.reports;
+          final totalOrderPrice = calculateTotalOrderPrice(reports?.orders ?? []);
 
           return Scaffold(
+            backgroundColor: const Color(0xffF8F9FB),
             appBar: CustomAppBar(
-              leading: IconButton(
-                icon: Icon(Icons.arrow_back_ios, color: AppColor.blackColor(context)),
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-              ),
-              appBarColor: AppColor.whiteColor(context),
               context,
-              height: 80,
-              centerTitle: false,
-              leadingPadding: 40,
-              title: Padding(
-                padding: const EdgeInsets.only(bottom: 40),
-                child: Text(AppLocaleKey.myReports.tr(), style: AppTextStyle.text18BS(context)),
+              height: 86,
+              title: Text(
+                AppLocaleKey.myReports.tr(),
+                style: const TextStyle(color: navy, fontSize: 21, fontWeight: FontWeight.w900),
               ),
             ),
             body: ApiResponseWidget(
-              apiResponse: myAccountController.reportsResponse,
-              onReload: () => myAccountController.getDelegateReports(reportType: 'week'),
-              isEmpty: myAccountController.reports == null,
+              apiResponse: controller.reportsResponse,
+              onReload: () => controller.getDelegateReports(reportType: selectedTimeFrame),
+              isEmpty: reports == null,
               child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 21, vertical: 15),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 15),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            decoration: BoxDecoration(
-                              color: AppColor.whiteColor(context),
-                              borderRadius: BorderRadius.circular(25),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColor.greyColor(context).withOpacity(0.4),
-                                  offset: const Offset(6, 6),
-                                  blurRadius: 5,
-                                ),
-                              ],
-                            ),
-                            child: DropdownButton<String>(
-                              value: selectedTimeFrame,
-                              underline: const SizedBox(),
-                              icon: const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 10.0),
-                                child: CustomImage(path: AppImages.arrowDownIconMain, type: ImageType.svg),
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                context.locale.languageCode == 'ar' ? 'ملخص الأداء' : 'Performance summary',
+                                style: const TextStyle(color: navy, fontSize: 20, fontWeight: FontWeight.w900),
                               ),
-                              items: timeFrames.map((String value) {
-                                return DropdownMenuItem<String>(
-                                  value: value,
-                                  child: Text(value.tr(), style: AppTextStyle.text14RM(context)),
-                                );
-                              }).toList(),
-                              onChanged: (newValue) {
-                                setState(() {
-                                  selectedTimeFrame = newValue!;
-                                  myAccountController.getDelegateReports(reportType: selectedTimeFrame);
-                                });
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      const SizedBox(height: 15),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              height: 80,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppColor.mainAppColor(context),
-                                    AppColor.mainAppColor(context).withOpacity(0.6),
-                                  ],
-                                ),
-                              ),
-                              child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                  children: [
-                                    Text(AppLocaleKey.receivedOrdersCount.tr(), style: AppTextStyle.text14MW(context)),
-                                    Text(
-                                      AppLocaleKey.order.tr().replaceAll(
-                                        '{}',
-                                        '${myAccountController.reports?.ordersCount ?? 0}',
-                                      ),
-                                      style: AppTextStyle.text16BW(context),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: Container(
-                              height: 80,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppColor.greenColor(context).withOpacity(0.7),
-                                    AppColor.greenColor(context).withOpacity(0.8),
-                                    AppColor.greenColor(context).withOpacity(0.9),
-                                  ],
-                                ),
-                              ),
-                              child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                  children: [
-                                    Text(AppLocaleKey.receivedAmount.tr(), style: AppTextStyle.text14MW(context)),
-                                    Text(
-                                      AppLocaleKey.pound.tr().replaceAll(
-                                        '{}',
-                                        "${double.tryParse(myAccountController.reports?.totalGainFromApp.toString() ?? "")?.toStringAsFixed(2) ?? 0}",
-                                      ),
-                                      style: AppTextStyle.text16BW(context),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              height: 80,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppColor.greyColor(context).withOpacity(0.8),
-                                    AppColor.greyColor(context).withOpacity(0.6),
-                                    AppColor.greyColor(context).withOpacity(0.8),
-                                  ],
-                                ),
-                              ),
-                              child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                  children: [
-                                    Text(AppLocaleKey.paidAmount.tr(), style: AppTextStyle.text14MW(context)),
-                                    Text(
-                                      AppLocaleKey.pound.tr().replaceAll(
-                                        '{}',
-                                        "${double.tryParse(myAccountController.reports?.totalCashOrder.toString() ?? "")?.toStringAsFixed(2) ?? 0}",
-                                      ),
-                                      style: AppTextStyle.text16BW(context),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: Container(
-                              height: 80,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppColor.yellowColor(context).withOpacity(0.6),
-                                    AppColor.yellowColor(context).withOpacity(0.7),
-                                    AppColor.yellowColor(context),
-                                  ],
-                                ),
-                              ),
-                              child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                  children: [
-                                    Text(AppLocaleKey.forwardReceivables.tr(), style: AppTextStyle.text14MW(context)),
-                                    Text(
-                                      AppLocaleKey.pound.tr().replaceAll(
-                                        '{}',
-                                        "${double.tryParse(myAccountController.reports?.notTransferCashOrders.toString() ?? "")?.toStringAsFixed(2) ?? 0}",
-                                      ),
-                                      style: AppTextStyle.text16BW(context),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 25),
-                      Text(AppLocaleKey.orders.tr(), style: AppTextStyle.text16BS(context)),
-                      const SizedBox(height: 10),
-                      CustomAppTable(
-                        columns: [
-                          AppLocaleKey.user.tr(),
-                          AppLocaleKey.reportOrderNumber.tr(),
-                          AppLocaleKey.deliveryCost.tr(),
-                          AppLocaleKey.deliveryMethod.tr(),
-                          AppLocaleKey.applicationPercentage.tr(),
-                        ],
-                        rows: List.generate(
-                          myAccountController.reports?.orders?.length ?? 0,
-                          (index) => DataRow(
-                            cells: [
-                              DataCell(Center(child: Text(myAccountController.reports?.orders?[index].userName ?? ''))),
-                              DataCell(Center(child: Text(myAccountController.reports?.orders?[index].orderNo ?? ''))),
-                              DataCell(
-                                Center(
-                                  child: Text(
-                                    AppLocaleKey.pound.tr().replaceAll(
-                                      '{}',
-                                      myAccountController.reports?.orders?[index].deliveryPrice?.toStringAsFixed(2) ??
-                                          '',
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                Center(
-                                  child: Text(
-                                    myAccountController.reports?.orders?[index].type == 'shipping'
-                                        ? AppLocaleKey.shippingOrder.tr()
-                                        : myAccountController.reports?.orders?[index].resturantName ?? '',
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                Center(
-                                  child: Text(
-                                    AppLocaleKey.pound.tr().replaceAll(
-                                      '{}',
-                                      double.tryParse(
-                                            myAccountController.reports?.orders?[index].appPercentage.toString() ?? '',
-                                          )?.toStringAsFixed(2) ??
-                                          '',
-                                    ),
-                                  ),
-                                ),
+                              const SizedBox(height: 4),
+                              Text(
+                                context.locale.languageCode == 'ar'
+                                    ? 'تابع الطلبات والأرباح خلال الفترة المحددة'
+                                    : 'Track orders and earnings for the selected period',
+                                style: const TextStyle(color: softText, fontSize: 12.5, fontWeight: FontWeight.w500),
                               ),
                             ],
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 25),
-                      Row(
-                        children: [
-                          Text(AppLocaleKey.totalPrice.tr(), style: AppTextStyle.text16BS(context)),
-                          const Spacer(),
-                          Text(
-                            AppLocaleKey.pound.tr().replaceAll('{}', totalOrderPrice.toStringAsFixed(2)),
-                            style: AppTextStyle.text16BG(context),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xffECEEF1)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: navy.withOpacity(.05),
+                                blurRadius: 12,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: selectedTimeFrame,
+                              borderRadius: BorderRadius.circular(18),
+                              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xffFD7201)),
+                              items: timeFrames
+                                  .map(
+                                    (value) => DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(
+                                        value.tr(),
+                                        style: const TextStyle(color: navy, fontSize: 12.5, fontWeight: FontWeight.w700),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (value) {
+                                if (value == null) return;
+                                setState(() => selectedTimeFrame = value);
+                                controller.getDelegateReports(reportType: value);
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    GridView.count(
+                      crossAxisCount: 2,
+                      childAspectRatio: 1.6,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: [
+                        _StatCard(
+                          icon: Icons.inventory_2_outlined,
+                          label: AppLocaleKey.receivedOrdersCount.tr(),
+                          value: AppLocaleKey.order.tr().replaceAll('{}', '${reports?.ordersCount ?? 0}'),
+                          accent: const Color(0xffFD7201),
+                          surface: const Color(0xffFFF0E3),
+                        ),
+                        _StatCard(
+                          icon: Icons.trending_up_rounded,
+                          label: AppLocaleKey.receivedAmount.tr(),
+                          value: AppLocaleKey.pound.tr().replaceAll(
+                            '{}',
+                            double.tryParse(reports?.totalGainFromApp.toString() ?? '')?.toStringAsFixed(2) ?? '0',
+                          ),
+                          accent: const Color(0xff16A36A),
+                          surface: const Color(0xffEAF8F2),
+                        ),
+                        _StatCard(
+                          icon: Icons.payments_outlined,
+                          label: AppLocaleKey.paidAmount.tr(),
+                          value: AppLocaleKey.pound.tr().replaceAll(
+                            '{}',
+                            double.tryParse(reports?.totalCashOrder.toString() ?? '')?.toStringAsFixed(2) ?? '0',
+                          ),
+                          accent: const Color(0xff5F6B7A),
+                          surface: const Color(0xffEEF0F3),
+                        ),
+                        _StatCard(
+                          icon: Icons.account_balance_wallet_outlined,
+                          label: AppLocaleKey.forwardReceivables.tr(),
+                          value: AppLocaleKey.pound.tr().replaceAll(
+                            '{}',
+                            double.tryParse(reports?.notTransferCashOrders.toString() ?? '')?.toStringAsFixed(2) ?? '0',
+                          ),
+                          accent: const Color(0xffC28B08),
+                          surface: const Color(0xffFFF7DB),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: const Color(0xffFFF0E3),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.receipt_long_rounded, color: Color(0xffFD7201), size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          AppLocaleKey.orders.tr(),
+                          style: const TextStyle(color: navy, fontSize: 18, fontWeight: FontWeight.w900),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(23),
+                        border: Border.all(color: const Color(0xffECEEF1)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: navy.withOpacity(.05),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 30),
-                    ],
-                  ),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: CustomAppTable(
+                          columns: [
+                            AppLocaleKey.user.tr(),
+                            AppLocaleKey.reportOrderNumber.tr(),
+                            AppLocaleKey.deliveryCost.tr(),
+                            AppLocaleKey.deliveryMethod.tr(),
+                            AppLocaleKey.applicationPercentage.tr(),
+                          ],
+                          rows: List.generate(
+                            reports?.orders?.length ?? 0,
+                            (index) {
+                              final order = reports?.orders?[index];
+                              return DataRow(
+                                cells: [
+                                  DataCell(Center(child: Text(order?.userName ?? ''))),
+                                  DataCell(Center(child: Text(order?.orderNo ?? ''))),
+                                  DataCell(
+                                    Center(
+                                      child: Text(
+                                        AppLocaleKey.pound.tr().replaceAll(
+                                          '{}',
+                                          order?.deliveryPrice?.toStringAsFixed(2) ?? '',
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Center(
+                                      child: Text(
+                                        order?.type == 'shipping'
+                                            ? AppLocaleKey.shippingOrder.tr()
+                                            : order?.resturantName ?? '',
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Center(
+                                      child: Text(
+                                        AppLocaleKey.pound.tr().replaceAll(
+                                          '{}',
+                                          double.tryParse(order?.appPercentage.toString() ?? '')?.toStringAsFixed(2) ?? '',
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                      decoration: BoxDecoration(
+                        color: const Color(0xff082A4D),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            AppLocaleKey.totalPrice.tr(),
+                            style: TextStyle(color: Colors.white.withOpacity(.76), fontSize: 13.5, fontWeight: FontWeight.w700),
+                          ),
+                          const Spacer(),
+                          Text(
+                            AppLocaleKey.pound.tr().replaceAll('{}', totalOrderPrice.toStringAsFixed(2)),
+                            style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.accent,
+    required this.surface,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color accent;
+  final Color surface;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(21),
+        border: Border.all(color: const Color(0xffECEEF1)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xff082A4D).withOpacity(.045),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(11)),
+                child: Icon(icon, color: accent, size: 19),
+              ),
+              const Spacer(),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xff7D8490), fontSize: 10.5, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xff082A4D), fontSize: 14.5, fontWeight: FontWeight.w900),
+          ),
+        ],
       ),
     );
   }
