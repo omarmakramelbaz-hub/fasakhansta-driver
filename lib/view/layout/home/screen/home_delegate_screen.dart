@@ -10,7 +10,6 @@ import '../../../../helpers/locale/app_locale_key.dart';
 import '../../../../helpers/pusher_service/pusher_controller.dart';
 import '../../../../helpers/theme/app_colors.dart';
 import '../../../../helpers/theme/app_text_style.dart';
-import '../../../../helpers/utils/common_methods.dart';
 import '../../../../helpers/utils/navigator_methods.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../../order/model/delegate_order_model.dart';
@@ -44,18 +43,8 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> with SingleTick
 
   @override
   void initState() {
-    final authController = context.read<AuthController>();
     _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final profile = authController.profile;
-      final hasMissingRequiredInfo =
-          profile != null &&
-          ((profile.name?.trim().isEmpty ?? true) ||
-              (profile.mobile?.trim().isEmpty ?? true));
-
-      if (hasMissingRequiredInfo) {
-        CommonMethods.showCompleteInfoDialog(context: context);
-      }
       _refreshData();
     });
     _pusherController = context.read<PusherController>();
