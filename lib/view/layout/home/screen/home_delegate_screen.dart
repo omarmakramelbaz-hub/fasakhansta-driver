@@ -127,7 +127,7 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> with SingleTick
                             onPressed: () => NavigatorMethods.pushNamed(context, WalletScreen.routeName),
                             iconAlignment: IconAlignment.end,
                             icon: Icon(
-                              Directionality.of(context) == TextDirection.rtl
+                              Directionality.of(context).name == 'rtl'
                                   ? Icons.chevron_left_rounded
                                   : Icons.chevron_right_rounded,
                               size: 20,
