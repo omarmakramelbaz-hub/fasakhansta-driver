@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:developer';
 
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:provider/provider.dart';
@@ -30,20 +29,12 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
   num? balance;
   num? minWallet;
   num? minWalletDisabled;
-  PusherController? _pusherController;
+  late PusherController _pusherController;
   String? pusherWalletAmount;
-
-  bool get _isGitHubPreview => kIsWeb && Uri.base.host.endsWith('github.io');
 
   @override
   void initState() {
     super.initState();
-
-    if (_isGitHubPreview) {
-      balance = 0;
-      return;
-    }
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authController = context.read<AuthController>();
       authController.getProfile().then((_) {
@@ -55,19 +46,16 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
         });
       });
     });
-
     _pusherController = context.read<PusherController>();
-    _pusherController!.addEventListener('balance.updated', _handleWalletUpdate);
+    _pusherController.addEventListener('balance.updated', _handleWalletUpdate);
   }
 
   void _handleWalletUpdate(PusherEvent event) {
     try {
       var jsonData = jsonDecode(event.data) as Map<String, dynamic>;
       log('Wallet updated: $jsonData');
-
       String amount = jsonData['user_balance']?.toString() ?? '0';
       pusherWalletAmount = num.parse(amount).toStringAsFixed(2);
-
       if (mounted) {
         context.read<AuthController>().getProfile().then((value) {
           if (!mounted) return;
@@ -87,7 +75,7 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
 
   @override
   void dispose() {
-    _pusherController?.removeEventListener('balance.updated', _handleWalletUpdate);
+    _pusherController.removeEventListener('balance.updated', _handleWalletUpdate);
     super.dispose();
   }
 
@@ -96,9 +84,7 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
     return Column(
       children: [
         GestureDetector(
-          onTap: () {
-            NavigatorMethods.pushNamed(context, WalletScreen.routeName);
-          },
+          onTap: () => NavigatorMethods.pushNamed(context, WalletScreen.routeName),
           child: Center(
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 10),
@@ -107,13 +93,7 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 color: AppColor.whiteColor(context),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColor.greyColor(context).withOpacity(0.2),
-                    offset: const Offset(0, 4),
-                    blurRadius: 10,
-                  ),
-                ],
+                boxShadow: [BoxShadow(color: AppColor.greyColor(context).withOpacity(0.2), offset: const Offset(0, 4), blurRadius: 10)],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -125,30 +105,11 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const SizedBox(height: 15),
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Text(AppLocaleKey.myCurrentBalance.tr(), style: AppTextStyle.text16MS(context)),
-                              const SizedBox(width: 5),
-                              SvgPicture.asset(AppImages.downIcon),
-                            ],
-                          ),
-                        ),
+                        Expanded(child: Row(children: [Text(AppLocaleKey.myCurrentBalance.tr(), style: AppTextStyle.text16MS(context)), const SizedBox(width: 5), SvgPicture.asset(AppImages.downIcon)])),
                         const SizedBox(height: 15),
                         balance == null
-                            ? CustomShimmer(
-                                height: 20,
-                                width: 100,
-                                radius: 4,
-                                shimmerColor: AppColor.mainAppColor(context),
-                              )
-                            : Text(
-                                AppLocaleKey.pound.tr().replaceAll(
-                                  '{}',
-                                  '${pusherWalletAmount ?? balance?.toStringAsFixed(0).toString()}',
-                                ),
-                                style: AppTextStyle.text16BS(context),
-                              ),
+                            ? CustomShimmer(height: 20, width: 100, radius: 4, shimmerColor: AppColor.mainAppColor(context))
+                            : Text(AppLocaleKey.pound.tr().replaceAll('{}', '${pusherWalletAmount ?? balance?.toStringAsFixed(0).toString()}'), style: AppTextStyle.text16BS(context)),
                       ],
                     ),
                   ),
@@ -165,10 +126,7 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
           ],
           if (balance! < minWalletDisabled!) ...[
             const SizedBox(height: 12),
-            _buildAlertContainer(
-              context,
-              AppLocaleKey.yourAccountIsCurrentlySuspended.tr(args: [minWallet!.toString()]),
-            ),
+            _buildAlertContainer(context, AppLocaleKey.yourAccountIsCurrentlySuspended.tr(args: [minWallet!.toString()])),
           ],
         ],
       ],
@@ -176,32 +134,19 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
   }
 
   Widget _buildAlertContainer(BuildContext context, String message) {
-    return Column(
-      children: [
-        InkWell(
-          onTap: () {
-            Navigator.pushNamed(context, WalletScreen.routeName);
-          },
-          child: Container(
-            padding: const EdgeInsets.all(9),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(4), color: AppColor.ffebbcColor(context)),
-            child: Row(
-              children: [
-                const Card(
-                  elevation: 5,
-                  shape: OvalBorder(),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-                    child: CustomImage(path: AppImages.infoIcon, type: ImageType.svg),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Flexible(child: Text(message, style: AppTextStyle.text14RS(context).copyWith(fontSize: 12))),
-              ],
-            ),
-          ),
+    return Column(children: [
+      InkWell(
+        onTap: () => Navigator.pushNamed(context, WalletScreen.routeName),
+        child: Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(4), color: AppColor.ffebbcColor(context)),
+          child: Row(children: [
+            const Card(elevation: 5, shape: OvalBorder(), child: Padding(padding: EdgeInsets.symmetric(horizontal: 15, vertical: 10), child: CustomImage(path: AppImages.infoIcon, type: ImageType.svg))),
+            const SizedBox(width: 8),
+            Flexible(child: Text(message, style: AppTextStyle.text14RS(context).copyWith(fontSize: 12))),
+          ]),
         ),
-      ],
-    );
+      ),
+    ]);
   }
 }
