@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -83,39 +85,49 @@ class _SplashScreenState extends State<SplashScreen> {
       context.read<AuthController>().initialProfile();
       _getData();
     } else {
-      Future.delayed(const Duration(milliseconds: 1200), _goLogin);
+      Future.delayed(const Duration(milliseconds: 800), _goLogin);
     }
   }
 
   Future<void> _getData() async {
     final authController = context.read<AuthController>();
 
-    await authController.getProfile(
-      onHaveId: (id, token) {
-        if (!kIsWeb) {
-          context.read<PusherController>().initPusher(
-                channelName: 'private-user.$id',
-                userId: id,
-                token: token,
-              );
-        }
-      },
-      onSuccess: () {
-        Future.delayed(const Duration(milliseconds: 900), _goHome);
-      },
-      onUnauthenticated: () {
-        HiveMethods.deleteToken();
-        Future.delayed(const Duration(milliseconds: 500), _goLogin);
-      },
-    );
+    try {
+      await authController
+          .getProfile(
+            onHaveId: (id, token) {
+              if (!kIsWeb) {
+                context.read<PusherController>().initPusher(
+                      channelName: 'private-user.$id',
+                      userId: id,
+                      token: token,
+                    );
+              }
+            },
+            onSuccess: () {
+              Future.delayed(const Duration(milliseconds: 500), _goHome);
+            },
+            onUnauthenticated: () {
+              HiveMethods.deleteToken();
+              Future.delayed(const Duration(milliseconds: 250), _goLogin);
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+    } on TimeoutException {
+      // Never leave users stuck on the splash screen when the API is slow/down.
+      HiveMethods.deleteToken();
+      _goLogin();
+      return;
+    } catch (_) {
+      HiveMethods.deleteToken();
+      _goLogin();
+      return;
+    }
 
-    // A stale token plus a network/CORS/server error used to leave the app
-    // permanently on the splash screen because only success/401 navigated.
-    // Any non-success terminal state should fall back to login instead.
     final state = authController.profileResponse.state;
     if (state != ResponseState.complete && state != ResponseState.loading) {
       HiveMethods.deleteToken();
-      Future.delayed(const Duration(milliseconds: 500), _goLogin);
+      _goLogin();
     }
   }
 }
