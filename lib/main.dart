@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -19,15 +21,12 @@ import 'helpers/theme/theme_enum.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // The GitHub Pages build is only a browser preview for UI review.
-  // Keep native Firebase / messaging startup away from Web so unsupported
-  // mobile plugins cannot leave the preview stuck on the bootstrap screen.
-  if (!kIsWeb) {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  }
-
+  // Only keep local, non-network startup work before the first Flutter frame.
+  // Firebase / messaging initialization is intentionally moved after runApp
+  // so a plugin/network issue can never leave the delegate app stuck on the
+  // native orange launch screen.
   await EasyLocalization.ensureInitialized();
-  await initServers();
+  await initLocalServices();
 
   runApp(
     EasyLocalization(
@@ -36,17 +35,19 @@ Future<void> main() async {
       fallbackLocale: const Locale('ar'),
       startLocale: const Locale('ar'),
       saveLocale: true,
-      child: ChangeNotifierProvider(create: (context) => AppThemeController()..initial(), child: const MyApp()),
+      child: ChangeNotifierProvider(
+        create: (context) => AppThemeController()..initial(),
+        child: const MyApp(),
+      ),
     ),
   );
+
+  if (!kIsWeb) {
+    unawaited(initNativeServices());
+  }
 }
 
-Future<void> initServers() async {
-  if (!kIsWeb) {
-    FirebaseMessaging.onBackgroundMessage(onAppBackground);
-    NotificationHelper().initialize();
-  }
-
+Future<void> initLocalServices() async {
   await Hive.initFlutter();
   if (!Hive.isAdapterRegistered(0)) {
     Hive.registerAdapter(ThemeEnumAdapter());
@@ -67,4 +68,20 @@ Future<void> initServers() async {
   }
 }
 
-Future<void> onAppBackground(RemoteMessage message) async => SoundNotification.instance.playSound();
+Future<void> initNativeServices() async {
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    ).timeout(const Duration(seconds: 8));
+
+    FirebaseMessaging.onBackgroundMessage(onAppBackground);
+    NotificationHelper().initialize();
+  } catch (error, stackTrace) {
+    // Startup must remain usable even if Firebase is temporarily unavailable.
+    debugPrint('Native Firebase startup skipped: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+}
+
+Future<void> onAppBackground(RemoteMessage message) async =>
+    SoundNotification.instance.playSound();
