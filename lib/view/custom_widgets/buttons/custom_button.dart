@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../helpers/networking/api_helper.dart';
 import '../../../helpers/theme/app_colors.dart';
 import '../../../helpers/theme/app_text_style.dart';
-import '../../../helpers/utils/general_const.dart';
 import '../custom_loading/custom_loading.dart';
 
 class CustomButton extends StatelessWidget {
@@ -28,18 +27,18 @@ class CustomButton extends StatelessWidget {
 
   const CustomButton({
     super.key,
-    this.radius = genRadius,
+    this.radius = 18,
     this.width,
-    this.height = 47,
+    this.height = 56,
     this.style,
     this.text,
-    this.prefixIcon = const SizedBox(),
-    this.suffixIcon = const SizedBox(),
+    this.prefixIcon,
+    this.suffixIcon,
     this.color,
     this.gradient,
     this.apiResponse,
     this.isLoading = false,
-    this.hasShadow = false,
+    this.hasShadow = true,
     this.onPressed,
     this.child,
     this.borderColor,
@@ -50,65 +49,78 @@ class CustomButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return apiResponse?.state == ResponseState.loading || isLoading
-        ? const Center(child: CustomLoading())
-        : Container(
-            width: width ?? double.infinity,
-            height: height,
-            decoration: BoxDecoration(
-              color: color,
-              gradient: color == null
-                  ? (gradient ??
-                        LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: <Color>[AppColor.appBarColor(context), AppColor.appBarColor2(context)],
-                        ))
-                  : null,
-              borderRadius: borderRadius ?? BorderRadius.circular(radius),
-              border: Border.all(color: borderColor ?? Colors.transparent),
-              boxShadow:
-                  boxShadow ??
-                  (hasShadow
-                      ? [BoxShadow(color: Colors.black.withOpacity(0.08), offset: const Offset(0, 0), blurRadius: 6)]
-                      : null),
-            ),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: Center(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (prefixIcon != null) ...{prefixIcon!, const SizedBox(width: 5)},
-                        gap != null ? SizedBox(width: gap!) : Container(),
-                        Flexible(
-                          child:
-                              child ??
-                              Text(
-                                text ?? '',
-                                textAlign: TextAlign.center,
-                                style: style ?? AppTextStyle.buttonStyle(context),
-                              ),
+    if (apiResponse?.state == ResponseState.loading || isLoading) {
+      return SizedBox(height: height, child: const Center(child: CustomLoading()));
+    }
+
+    final resolvedRadius = borderRadius ?? BorderRadius.circular(radius);
+    final enabled = onPressed != null;
+
+    return AnimatedOpacity(
+      opacity: enabled ? 1 : .66,
+      duration: const Duration(milliseconds: 160),
+      child: Container(
+        width: width ?? double.infinity,
+        height: height,
+        decoration: BoxDecoration(
+          color: color,
+          gradient: color == null
+              ? (gradient ??
+                    const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xffFF8A08), Color(0xffFF6500)],
+                    ))
+              : null,
+          borderRadius: resolvedRadius,
+          border: Border.all(color: borderColor ?? Colors.transparent),
+          boxShadow: boxShadow ??
+              (hasShadow
+                  ? [
+                      BoxShadow(
+                        color: AppColor.mainAppColor(context).withOpacity(.24),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ]
+                  : null),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: resolvedRadius.resolve(Directionality.of(context)),
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(radius),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.max,
+                children: [
+                  if (prefixIcon != null) ...[
+                    prefixIcon!,
+                    SizedBox(width: gap ?? 8),
+                  ],
+                  Flexible(
+                    child: child ??
+                        Text(
+                          text ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: style ?? AppTextStyle.buttonStyle(context).copyWith(fontWeight: FontWeight.w800),
                         ),
-                        if (suffixIcon != null) ...{const SizedBox(width: 5), suffixIcon!},
-                      ],
-                    ),
                   ),
-                ),
-                Positioned.fill(
-                  child: Material(
-                    color: Colors.transparent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(radius),
-                      onTap: onPressed,
-                      child: SizedBox(width: width ?? double.infinity, height: height),
-                    ),
-                  ),
-                ),
-              ],
+                  if (suffixIcon != null) ...[
+                    SizedBox(width: gap ?? 8),
+                    suffixIcon!,
+                  ],
+                ],
+              ),
             ),
-          );
+          ),
+        ),
+      ),
+    );
   }
 }
