@@ -12,26 +12,22 @@ import '../../my_account/model/areas_model.dart';
 import '../model/profile_model.dart';
 
 class AuthController extends ChangeNotifier {
-  bool get _isGitHubPreview => kIsWeb && Uri.base.host.endsWith('github.io');
-
-  ///                           profile                                     //
   void initialProfile() {
     _profileResponse = ApiResponse(state: ResponseState.sleep, data: null);
     _profile = null;
-    //notifyListeners();
   }
 
   ApiResponse _profileResponse = ApiResponse(state: ResponseState.sleep, data: null);
   ApiResponse get profileResponse => _profileResponse;
   ProfileModel? _profile;
   ProfileModel? get profile => _profile;
+
   Future<void> getProfile({
     void Function(int id, String token)? onHaveId,
     VoidCallback? onSuccess,
     VoidCallback? onUnauthenticated,
   }) async {
     _profileResponse = ApiResponse(state: ResponseState.loading, data: null);
-    //notifyListeners();
     _profileResponse = await ApiHelper.instance.get(Urls.profile);
     notifyListeners();
     if (_profileResponse.state == ResponseState.complete) {
@@ -50,7 +46,6 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  //                               login                                       //
   Future<void> login({
     required String mobile,
     required String password,
@@ -59,22 +54,10 @@ class AuthController extends ChangeNotifier {
   }) async {
     NavigatorMethods.loading();
 
-    // Only GitHub Pages is a UI preview. Other web builds (including the
-    // production/server build) must use the real login flow.
-    if (_isGitHubPreview) {
-      NavigatorMethods.loadingOff();
-      onSuccess.call('delegate');
-      notifyListeners();
-      return;
-    }
-
     String fcmId = '';
     if (!kIsWeb) {
       try {
-        fcmId = await FirebaseMessaging.instance
-                .getToken()
-                .timeout(const Duration(seconds: 5)) ??
-            '';
+        fcmId = await FirebaseMessaging.instance.getToken().timeout(const Duration(seconds: 5)) ?? '';
       } catch (_) {
         fcmId = '';
       }
@@ -93,12 +76,9 @@ class AuthController extends ChangeNotifier {
       if (response.data['data']['id'] != null && response.data['data']['token'] != null) {
         onHaveId?.call(response.data['data']['id'], response.data['data']['token']);
       }
-
       getProfile();
       CommonMethods.showToast(message: response.data['message']);
-
       onSuccess.call(response.data['data']['account_type']);
-
       notifyListeners();
     } else {
       CommonMethods.showError(message: response.data['message'], apiResponse: response);
@@ -112,18 +92,15 @@ class AuthController extends ChangeNotifier {
     if (response.state == ResponseState.complete) {
       CommonMethods.showToast(message: response.data['message']);
       _profile = null;
-
       HiveMethods.deleteToken();
       notifyListeners();
       onSuccess.call();
     } else {
       onSuccess.call();
-
       CommonMethods.showError(message: response.data['message'], apiResponse: response);
     }
   }
 
-  //================================== areas =============================
   void initialAreas() {
     _areasResponse = ApiResponse(state: ResponseState.sleep, data: null);
     _areas = [];
@@ -132,7 +109,6 @@ class AuthController extends ChangeNotifier {
 
   ApiResponse _areasResponse = ApiResponse(state: ResponseState.sleep, data: null);
   ApiResponse get areasResponse => _areasResponse;
-
   List<AreasModel> _areas = [];
   List<AreasModel> get areas => _areas;
 
@@ -142,14 +118,12 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
     _areasResponse = await ApiHelper.instance.get(Urls.areas);
     notifyListeners();
-
     if (_areasResponse.state == ResponseState.complete) {
       Iterable iterable = _areasResponse.data['data'];
       _areas = iterable.map((e) => AreasModel.fromJson(e)).toList();
       notifyListeners();
     }
   }
-  //=================================== update vendor location =============================
 
   Future<void> updateVendorLocation({
     required int resturantId,
@@ -161,7 +135,6 @@ class AuthController extends ChangeNotifier {
     required VoidCallback onSuccess,
   }) async {
     NavigatorMethods.loading();
-
     FormData body = FormData.fromMap({
       'lat': lat,
       'lng': lng,
@@ -169,10 +142,7 @@ class AuthController extends ChangeNotifier {
       'city_name': cityName,
       'address': address,
     });
-    final response = await ApiHelper.instance.post(
-      '${Urls.updateVendorLocation}$resturantId/resturant-location',
-      body: body,
-    );
+    final response = await ApiHelper.instance.post('${Urls.updateVendorLocation}$resturantId/resturant-location', body: body);
     NavigatorMethods.loadingOff();
     if (response.state == ResponseState.complete) {
       CommonMethods.showToast(message: response.data['message']);
@@ -185,7 +155,6 @@ class AuthController extends ChangeNotifier {
 
   Future<void> updateDelegateLocation({required num lat, required num lng, required VoidCallback onSuccess}) async {
     NavigatorMethods.loading();
-
     FormData body = FormData.fromMap({'lat': lat, 'lng': lng});
     final response = await ApiHelper.instance.post(Urls.updatePosition, body: body);
     NavigatorMethods.loadingOff();
@@ -198,7 +167,6 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  // ==================================== delete account =============================
   Future<void> deleteAccount({required String mobileCode, required VoidCallback onSuccess}) async {
     NavigatorMethods.loading();
     FormData body = FormData.fromMap({'password': mobileCode});
