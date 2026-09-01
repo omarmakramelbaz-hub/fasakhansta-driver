@@ -34,7 +34,7 @@ class AuthController extends ChangeNotifier {
       _profile = ProfileModel.fromJson(_profileResponse.data['data']);
       HiveMethods.updateLat(double.parse(_profile!.lat ?? '0'));
       HiveMethods.updateLan(double.parse(_profile!.lng ?? '0'));
-      if (_profile?.id != null) {
+      if (_profile?.id != null && _profile?.token != null) {
         onHaveId?.call(_profile!.id!, _profile!.token!);
       }
       notifyListeners();
@@ -70,17 +70,41 @@ class AuthController extends ChangeNotifier {
       'account_type': 'delegate',
     });
     final response = await ApiHelper.instance.post(Urls.login, body: body);
-    NavigatorMethods.loadingOff();
     if (response.state == ResponseState.complete) {
-      HiveMethods.updateToken(response.data['data']['token']);
-      if (response.data['data']['id'] != null && response.data['data']['token'] != null) {
-        onHaveId?.call(response.data['data']['id'], response.data['data']['token']);
+      final token = response.data['data']['token']?.toString();
+      final accountType = response.data['data']['account_type']?.toString() ?? '';
+      final id = response.data['data']['id'];
+
+      if (token == null || token.isEmpty) {
+        NavigatorMethods.loadingOff();
+        CommonMethods.showError(
+          message: 'تعذر حفظ جلسة تسجيل الدخول',
+          apiResponse: ApiResponse(state: ResponseState.error, data: const {'message': 'تعذر حفظ جلسة تسجيل الدخول'}),
+        );
+        return;
       }
-      getProfile();
+
+      // Hive Web persists through IndexedDB asynchronously. Await the token before
+      // firing any authenticated profile/home requests so Authorization is present.
+      await HiveMethods.updateToken(token);
+
+      if (id != null) {
+        onHaveId?.call(id, token);
+      }
+
+      await getProfile();
+      NavigatorMethods.loadingOff();
+
+      if (_profileResponse.state != ResponseState.complete) {
+        CommonMethods.showError(message: _profileResponse.data['message'] ?? 'حدث خطأ', apiResponse: _profileResponse);
+        return;
+      }
+
       CommonMethods.showToast(message: response.data['message']);
-      onSuccess.call(response.data['data']['account_type']);
+      onSuccess.call(accountType);
       notifyListeners();
     } else {
+      NavigatorMethods.loadingOff();
       CommonMethods.showError(message: response.data['message'], apiResponse: response);
     }
   }
