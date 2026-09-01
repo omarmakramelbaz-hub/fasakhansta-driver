@@ -5,8 +5,6 @@ import 'package:provider/provider.dart';
 
 import '../../../../helpers/images/app_images.dart';
 import '../../../../helpers/locale/app_locale_key.dart';
-import '../../../../helpers/theme/app_colors.dart';
-import '../../../../helpers/theme/app_text_style.dart';
 import '../../../../helpers/utils/date_methods.dart';
 import '../../../custom_widgets/custom_image/custom_image.dart';
 import '../../auth/controller/auth_controller.dart';
@@ -19,75 +17,127 @@ class RecentTransactionsWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        ...List.generate(wallet?.wallet?.length ?? 0, (int index) {
-          bool isFromMe = (context.read<AuthController>().profile?.id == wallet?.wallet?[index].fromUser);
-          bool isToMe = (context.read<AuthController>().profile?.id == wallet?.wallet?[index].toUser);
-          return Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
-              margin: const EdgeInsets.only(bottom: 10),
+    const navy = Color(0xff082A4D);
+    const softText = Color(0xff7D8490);
+    const orange = Color(0xffFD7201);
+
+    final transactions = wallet?.wallet ?? [];
+    if (transactions.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: AppColor.greyColor(context).withOpacity(.10)),
+                color: const Color(0xffFFF0E3),
+                borderRadius: BorderRadius.circular(17),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    margin: const EdgeInsets.all(10),
-                    padding: const EdgeInsets.all(5),
-                    width: 47,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColor.whiteColor(context),
-                      boxShadow: [
-                        BoxShadow(color: AppColor.greyColor(context), blurRadius: 4, offset: const Offset(0, 2)),
-                      ],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: wallet?.wallet?[index].payment == 'visa'
-                        ? SvgPicture.asset(AppImages.visaIcon)
-                        : wallet?.wallet?[index].payment == 'wallet'
+              child: const Icon(Icons.receipt_long_outlined, color: orange, size: 25),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              context.locale.languageCode == 'ar' ? 'لا توجد معاملات حتى الآن' : 'No transactions yet',
+              style: const TextStyle(color: softText, fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: List.generate(transactions.length, (index) {
+        final transaction = transactions[index];
+        final isFromMe = context.read<AuthController>().profile?.id == transaction.fromUser;
+        final isToMe = context.read<AuthController>().profile?.id == transaction.toUser;
+        final isIncoming = isToMe || transaction.type == 'charging';
+
+        final description =
+            "${AppLocaleKey.theAmountIs.tr().replaceAll('{}', buildTransaction(transaction: transaction.type ?? ''))} "
+            "${AppLocaleKey.pound.tr().replaceAll('{}', transaction.amount.toString())} "
+            "${AppLocaleKey.paymentTypeIs.tr().replaceAll('{}', buildPaymentType(paymentType: transaction.payment ?? ''))} "
+            "${transaction.fromUserName != null && transaction.toUserName != null ? AppLocaleKey.fromUser.tr().replaceAll('{}', isFromMe ? AppLocaleKey.yourWallet.tr() : transaction.fromUserName ?? '') : ''} "
+            "${transaction.toUserName != null ? AppLocaleKey.toUser.tr().replaceAll('{}', isToMe ? AppLocaleKey.yourWallet.tr() : transaction.toUserName ?? '') : ''} "
+            "${transaction.orderNo != null ? AppLocaleKey.orderNumber.tr().replaceAll('{}', transaction.orderNo ?? '') : ''}";
+
+        return Container(
+          margin: EdgeInsets.only(bottom: index == transactions.length - 1 ? 0 : 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xffFAFAFB),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xffECEEF1)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isIncoming ? const Color(0xffEAF8F2) : const Color(0xffFFF0E3),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: transaction.payment == 'visa'
+                    ? SvgPicture.asset(AppImages.visaIcon)
+                    : transaction.payment == 'wallet'
                         ? CustomImage(
                             path: AppImages.paymentRDIcon,
                             type: ImageType.svg,
-                            color: AppColor.blackColor(context),
+                            color: isIncoming ? const Color(0xff16A36A) : orange,
                           )
                         : Image.asset(AppImages.digitalWallet, height: 25),
-                  ),
-                  Expanded(
-                    child: Column(
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Text(
-                              DateMethods.formatDateToArabic(wallet?.wallet?[index].createdAt ?? ''),
-                              style: AppTextStyle.text14RG(context),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              DateMethods.formatToTime(wallet?.wallet?[index].createdAt ?? ''),
-                              style: AppTextStyle.text14RG(context),
-                            ),
-                          ],
+                        Expanded(
+                          child: Text(
+                            buildTransaction(transaction: transaction.type ?? ''),
+                            style: const TextStyle(color: navy, fontSize: 14.5, fontWeight: FontWeight.w800),
+                          ),
                         ),
                         Text(
-                          "${AppLocaleKey.theAmountIs.tr().replaceAll("{}", buildTransaction(transaction: wallet?.wallet?[index].type ?? ""))} ${AppLocaleKey.pound.tr().replaceAll("{}", wallet?.wallet?[index].amount.toString() ?? "")} ${AppLocaleKey.paymentTypeIs.tr().replaceAll("{}", buildPaymentType(paymentType: wallet?.wallet?[index].payment ?? ""))} ${wallet?.wallet?[index].fromUserName != null && wallet?.wallet?[index].toUserName != null ? AppLocaleKey.fromUser.tr().replaceAll("{}", isFromMe ? AppLocaleKey.yourWallet.tr() : wallet?.wallet?[index].fromUserName ?? "") : ""}  ${wallet?.wallet?[index].toUserName != null ? AppLocaleKey.toUser.tr().replaceAll("{}", isToMe ? AppLocaleKey.yourWallet.tr() : wallet?.wallet?[index].toUserName ?? "") : ""}  ${wallet?.wallet?[index].orderNo != null ? AppLocaleKey.orderNumber.tr().replaceAll("{}", wallet?.wallet?[index].orderNo ?? "") : ""} ",
-                          style: AppTextStyle.text16MS(context).copyWith(height: 2),
-                          maxLines: 4,
+                          AppLocaleKey.pound.tr().replaceAll('{}', transaction.amount.toString()),
+                          style: TextStyle(
+                            color: isIncoming ? const Color(0xff16A36A) : orange,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 5),
-                ],
+                    const SizedBox(height: 6),
+                    Text(
+                      description.trim(),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: softText, fontSize: 11.5, height: 1.45, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 7),
+                    Row(
+                      children: [
+                        const Icon(Icons.schedule_rounded, color: Color(0xff9AA0AA), size: 13),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${DateMethods.formatDateToArabic(transaction.createdAt ?? '')}  ${DateMethods.formatToTime(transaction.createdAt ?? '')}',
+                          style: const TextStyle(color: Color(0xff9299A4), fontSize: 10.5, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        }),
-      ],
+            ],
+          ),
+        );
+      }),
     );
   }
 
@@ -111,7 +161,6 @@ class RecentTransactionsWidget extends StatelessWidget {
       case 'wallet':
         return AppLocaleKey.appWalletBalance.tr();
       case 'online':
-        return AppLocaleKey.visa.tr();
       case 'visa':
         return AppLocaleKey.visa.tr();
       case 'v_cash':
