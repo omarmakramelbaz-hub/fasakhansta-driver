@@ -1,14 +1,9 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
-import '../../../../helpers/images/app_images.dart';
 import '../../../../helpers/locale/app_locale_key.dart';
 import '../../../../helpers/networking/notification_helper.dart';
-import '../../../../helpers/theme/app_colors.dart';
-import '../../../../helpers/theme/app_text_style.dart';
 import '../../../../helpers/utils/navigator_methods.dart';
-import '../../../custom_widgets/custom_image/custom_image.dart';
-import '../../../custom_widgets/dotted_decoration/dotted_decoration.dart';
 import '../model/delegate_order_model.dart';
 import '../screen/order_details_delegate_screen.dart';
 import 'order_header_widget.dart';
@@ -22,193 +17,166 @@ class SinglePreviousDelegateOrderItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // final delegateId = order?.delegateId;
-    // final currentUserId = context.read<AuthController>().profile?.id;
-    // final isCurrentUserDelegate = delegateId == currentUserId;
+    const navy = Color(0xff082A4D);
+    const softText = Color(0xff7D8490);
+    const orange = Color(0xffFD7201);
 
-    // final isOutRestaurantAndCashPayment =
-    //     order?.delegateFromOut == "out_resturant" &&
-    //         order?.paymentType == "cash";
+    final isShipped = order?.type == 'shipping';
+    final fromAddress = isShipped
+        ? (order?.fromAddress ?? '')
+        : '${order?.userAddress?.cityName ?? ''} ,${order?.userAddress?.streetName ?? ''}';
+    final toAddress = isShipped
+        ? (order?.toAddress ?? '')
+        : order?.delegateItems?.isNotEmpty == true
+            ? '${order?.resturantLocation ?? ''} ,${order?.delegateItems?.first.resturantCityName ?? ''}'
+            : (order?.resturantLocation ?? '');
 
-    // final isPaidBefore = order?.hasTransferedBefore == 0;
-
-    final bool isShipped = order?.type == 'shipping';
-    final String fromAddress;
-    final String toAddress;
-    if (isShipped) {
-      fromAddress = order?.fromAddress ?? '';
-      toAddress = order?.toAddress ?? '';
-    } else {
-      fromAddress = " ${order?.userAddress?.cityName ?? ""} ,${order?.userAddress?.streetName ?? ""}";
-      if (order?.delegateItems?.isNotEmpty == true) {
-        toAddress = "${order?.resturantLocation ?? ""} ,${order?.delegateItems?.first.resturantCityName ?? ""}";
-      } else {
-        toAddress = " ${order?.resturantLocation ?? ""} ";
-      }
-    }
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 10),
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColor.textFormBorderColor(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            onTap: () {
-              SoundNotification.instance.stopSound();
-              NavigatorMethods.pushNamed(
-                context,
-                OrderDetailsDelegateScreen.routeName,
-                arguments: OrderDetailsDelegateScreenArgs(fromHome: false, orderId: orderId),
-              );
-            },
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: () {
+            SoundNotification.instance.stopSound();
+            NavigatorMethods.pushNamed(
+              context,
+              OrderDetailsDelegateScreen.routeName,
+              arguments: OrderDetailsDelegateScreenArgs(fromHome: false, orderId: orderId),
+            );
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xffECEEF1)),
+              boxShadow: [
+                BoxShadow(
+                  color: navy.withOpacity(.055),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
             child: Column(
               children: [
-                _buildOrderHeader(context, isShipped),
-                _buildOrderDetails(context, isShipped, fromAddress, toAddress),
-                _buildOrderCost(context),
+                OrderHeaderWidget(order: order, isShipped: isShipped),
+                Container(height: 1, color: const Color(0xffF0F1F3)),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(15, 14, 15, 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _PreviousAddressBlock(
+                          icon: Icons.location_on_outlined,
+                          title: AppLocaleKey.receivingAddress.tr(),
+                          address: fromAddress,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        child: Container(width: 1, height: 70, color: const Color(0xffECEEF1)),
+                      ),
+                      Expanded(
+                        child: _PreviousAddressBlock(
+                          icon: Icons.flag_rounded,
+                          title: AppLocaleKey.deliveryLocation.tr(),
+                          address: toAddress,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(height: 1, color: const Color(0xffF0F1F3)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: const Color(0xffEAF8F2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.check_circle_rounded, color: Color(0xff16A36A), size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              AppLocaleKey.deliveryCost.tr(),
+                              style: const TextStyle(color: softText, fontSize: 12.5, fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              context.locale.languageCode == 'ar' ? 'تم إتمام الطلب' : 'Order completed',
+                              style: const TextStyle(color: Color(0xff16A36A), fontSize: 11.5, fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        AppLocaleKey.pound.tr().replaceAll('{}', '${order?.deliveryPrice?.toStringAsFixed(2) ?? '0'} '),
+                        style: const TextStyle(color: navy, fontSize: 18, fontWeight: FontWeight.w900),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
-          // _buildBottomActions(context, isCurrentUserDelegate,
-          //     isOutRestaurantAndCashPayment, isPaidBefore),
-        ],
+        ),
       ),
     );
   }
+}
 
-  Widget _buildOrderHeader(BuildContext context, bool isShipped) {
-    return OrderHeaderWidget(order: order, isShipped: isShipped);
-  }
+class _PreviousAddressBlock extends StatelessWidget {
+  const _PreviousAddressBlock({required this.icon, required this.title, required this.address});
+  final IconData icon;
+  final String title;
+  final String address;
 
-  Widget _buildOrderDetails(BuildContext context, bool isShipped, String fromAddress, String toAddress) {
+  @override
+  Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(decoration: const DottedDecoration(strokeWidth: 0.7, dash: [7, 5])),
-        const SizedBox(height: 10),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildLocationInfo(context, AppLocaleKey.receivingAddress.tr(), fromAddress, isShipped),
-            _buildLocationInfo(context, AppLocaleKey.deliveryLocation.tr(), toAddress, isShipped),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: const Color(0xffFFF0E3),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, color: const Color(0xffFD7201), size: 16),
+            ),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Color(0xff082A4D), fontSize: 12.5, fontWeight: FontWeight.w800),
+              ),
+            ),
           ],
         ),
-        const SizedBox(height: 10),
-        Divider(thickness: 0.2, color: AppColor.textFormColor(context)),
+        const SizedBox(height: 8),
+        Text(
+          address,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Color(0xff7D8490), fontSize: 12, height: 1.4, fontWeight: FontWeight.w500),
+        ),
       ],
     );
   }
-
-  Widget _buildLocationInfo(BuildContext context, String label, String? location, bool isShipped) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 17),
-            child: Text(label, style: AppTextStyle.text16MS(context)),
-          ),
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 5),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const CustomImage(path: AppImages.locationIcon, type: ImageType.svg),
-                const SizedBox(width: 5),
-                Expanded(child: Text(location ?? '', style: AppTextStyle.text16MG(context), maxLines: 2)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOrderCost(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(AppLocaleKey.deliveryCost.tr(), style: AppTextStyle.text18BS(context)),
-          Text(
-            AppLocaleKey.pound.tr().replaceAll('{}', '${order?.deliveryPrice?.toStringAsFixed(2)} '),
-            style: AppTextStyle.text18BS(context),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Widget _buildBottomActions(
-  //      bool isCurrentUserDelegate, bool isOutRestaurantAndCashPayment, bool isPaidBefore) {
-  //   if (isCurrentUserDelegate && isOutRestaurantAndCashPayment && isPaidBefore) {
-  //     return _buildDefaultAction();
-  //   } else {
-  //     return _buildDefaultAction();
-  //   }
-  // }
-  //
-  // Widget _buildCashPaymentActions() {
-  //   return Padding(
-  //     padding: const EdgeInsets.symmetric(horizontal: 5),
-  //     child: Row(
-  //       children: [
-  //         Expanded(
-  //           flex: 2,
-  //           child: Padding(
-  //             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 23),
-  //             child: CustomButton(
-  //               color: AppColor.lightGreyColor(context),
-  //               text: AppLocaleKey.deliveredToCustomer.tr(),
-  //               style: AppTextStyle.text16BS(context),
-  //               onPressed: () {
-  //                 log(order?.delegateId.toString() ?? '');
-  //                 log(context.read<AuthController>().profile?.id.toString() ??
-  //                     '');
-  //               },
-  //             ),
-  //           ),
-  //         ),
-  //         Expanded(
-  //           flex: 1,
-  //           child: ChangeNotifierProvider(
-  //             create: (context) => DelegateOrdersController(),
-  //             child: Consumer<DelegateOrdersController>(
-  //               builder: (context, delegateOrderController, _) {
-  //                 return CustomButton(
-  //                   style: AppTextStyle.text16BW(context),
-  //                   text: AppLocaleKey.payToDelegate.tr(),
-  //                   onPressed: () {
-  //                     delegateOrderController.delegateTransferOrderPrice(
-  //                       orderId: order?.id ?? 0,
-  //                       onSuccess: () {},
-  //                     );
-  //                   },
-  //                 );
-  //               },
-  //             ),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-  // Widget _buildDefaultAction() {
-  //   return Padding(
-  //     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 23),
-  //     child: CustomButton(
-  //       color: AppColor.lightGreyColor(),
-  //       text: AppLocaleKey.deliveredOrderToCustomer.tr(),
-  //       style: AppTextStyle.text18BS(context),
-  //     ),
-  //   );
-  // }
 }
