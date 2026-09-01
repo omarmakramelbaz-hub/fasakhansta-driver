@@ -8,8 +8,6 @@ import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
 
 import '../../../../helpers/locale/app_locale_key.dart';
 import '../../../../helpers/pusher_service/pusher_controller.dart';
-import '../../../../helpers/theme/app_colors.dart';
-import '../../../../helpers/theme/app_text_style.dart';
 import '../controller/delegate_order_controller.dart';
 import '../model/delegate_order_model.dart';
 import '../widget/on_going_orders_delegate_widget.dart';
@@ -25,7 +23,8 @@ class OrdersDelegateScreen extends StatefulWidget {
 
 class _OrdersDelegateScreenState extends State<OrdersDelegateScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  late PusherController _pusherController; // Saved reference
+  late PusherController _pusherController;
+
   @override
   void initState() {
     super.initState();
@@ -39,15 +38,10 @@ class _OrdersDelegateScreenState extends State<OrdersDelegateScreen> with Single
     try {
       final decodedData = json.decode(event.data) as Map<String, dynamic>;
       final orderData = decodedData['order_id'];
-      if (mounted) {
-        var orderModel = DelegateOrdersModel.fromJson(orderData as Map<String, dynamic>);
-        _loadData();
-        //  context.read<DelegateOrdersController>().addOrderToTop(orderModel);
-        if (orderModel.status == 'declined' || orderModel.status == 'cancelled') {
-          _loadData();
-        }
-        //_loadData();
-      }
+      if (!mounted || orderData is! Map<String, dynamic>) return;
+      final orderModel = DelegateOrdersModel.fromJson(orderData);
+      _loadData();
+      if (orderModel.status == 'declined' || orderModel.status == 'cancelled') _loadData();
     } catch (e, stackTrace) {
       log('Error handling Pusher event: $e');
       log('Stack trace: $stackTrace');
@@ -55,144 +49,184 @@ class _OrdersDelegateScreenState extends State<OrdersDelegateScreen> with Single
   }
 
   void _loadData() {
-    final orderController = Provider.of<DelegateOrdersController>(context, listen: false);
-    // Provider.of<DelegateOrdersController>(context, listen: false)
-    //     .getAllDelegateOrders();
-    orderController.initialDelegateCompletedOrders();
-    orderController.initialDelegateOngoingOrders();
-    orderController.initialDelegateWaitingOrders();
+    final controller = context.read<DelegateOrdersController>();
+    controller.initialDelegateCompletedOrders();
+    controller.initialDelegateOngoingOrders();
+    controller.initialDelegateWaitingOrders();
     Future.wait([
-      orderController.getDelegateWaitingOrders(),
-      orderController.getDelegateOngoingOrders(),
-      orderController.getDelegateCompletedOrders(),
+      controller.getDelegateWaitingOrders(),
+      controller.getDelegateOngoingOrders(),
+      controller.getDelegateCompletedOrders(),
     ]);
-  }
-
-  Color _getCircleAvatarBgColor(int index) {
-    return _tabController.index == index
-        ? AppColor.mainAppColor(context)
-        : AppColor.greyColor(context).withOpacity(0.3);
   }
 
   @override
   void dispose() {
-    _pusherController.removeEventListener('delegate.updated', _handleDelegateUpdated); // Use saved reference
+    _pusherController.removeEventListener('delegate.updated', _handleDelegateUpdated);
     _tabController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        body: Consumer<DelegateOrdersController>(
-          builder: (context, delegateOrderController, child) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 21, vertical: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  //============title===============
-                  Text(AppLocaleKey.orders.tr(), style: AppTextStyle.text20BS(context)),
+    const navy = Color(0xff082A4D);
+    const softText = Color(0xff7D8490);
 
-                  TabBar(
+    return Scaffold(
+      backgroundColor: const Color(0xffF8F9FB),
+      body: Consumer<DelegateOrdersController>(
+        builder: (context, controller, _) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xffFF8A08), Color(0xffFF6500)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xffFD7201).withOpacity(.20),
+                            blurRadius: 15,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.receipt_long_rounded, color: Colors.white, size: 25),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            AppLocaleKey.orders.tr(),
+                            style: const TextStyle(color: navy, fontSize: 25, fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            context.locale.languageCode == 'ar'
+                                ? 'تابع الطلبات حسب حالتها'
+                                : 'Track orders by their status',
+                            style: const TextStyle(color: softText, fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  height: 58,
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xffEEF0F3),
+                    borderRadius: BorderRadius.circular(19),
+                  ),
+                  child: TabBar(
                     controller: _tabController,
-                    labelStyle: AppTextStyle.text16BM(context),
-                    unselectedLabelStyle: AppTextStyle.text16RG(context),
-                    indicatorColor: AppColor.mainAppColor(context),
+                    dividerColor: Colors.transparent,
                     indicatorSize: TabBarIndicatorSize.tab,
-                    indicatorWeight: 3,
-                    isScrollable: true,
-                    onTap: (value) {
-                      setState(() {
-                        _tabController.index = value;
-                      });
-                    },
+                    indicator: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(15),
+                      boxShadow: [
+                        BoxShadow(
+                          color: navy.withOpacity(.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    labelColor: navy,
+                    unselectedLabelColor: softText,
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 3),
+                    labelStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
+                    unselectedLabelStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                    onTap: (_) => setState(() {}),
                     tabs: [
-                      Tab(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(AppLocaleKey.pending.tr()),
-                            const SizedBox(width: 13),
-                            CircleAvatar(
-                              radius: 14,
-                              backgroundColor: _getCircleAvatarBgColor(0),
-                              child: Center(
-                                child: Text(
-                                  delegateOrderController.totalWaiting.toString(),
-                                  style: AppTextStyle.text18BW(
-                                    context,
-                                  ).copyWith(height: context.locale.languageCode == 'ar' ? 1.7 : 1),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                      _OrderTab(
+                        label: AppLocaleKey.pending.tr(),
+                        count: controller.totalWaiting,
+                        selected: _tabController.index == 0,
                       ),
-                      Tab(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(AppLocaleKey.ongoing.tr()),
-                            const SizedBox(width: 13),
-                            CircleAvatar(
-                              radius: 14,
-                              backgroundColor: _getCircleAvatarBgColor(1),
-                              child: Center(
-                                child: Text(
-                                  delegateOrderController.ongoingOrders?.meta?.total.toString() ?? '0',
-                                  style: AppTextStyle.text18BW(
-                                    context,
-                                  ).copyWith(height: context.locale.languageCode == 'ar' ? 1.7 : 1),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                      _OrderTab(
+                        label: AppLocaleKey.ongoing.tr(),
+                        count: controller.ongoingOrders?.meta?.total ?? 0,
+                        selected: _tabController.index == 1,
                       ),
-                      Tab(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(AppLocaleKey.previous.tr()),
-                            const SizedBox(width: 5),
-                            CircleAvatar(
-                              radius: 14,
-                              backgroundColor: _getCircleAvatarBgColor(2), // Change background color dynamically
-                              child: Center(
-                                child: Text(
-                                  delegateOrderController.completedOrders?.meta?.total?.toString() ?? '0',
-                                  style: AppTextStyle.text18BW(
-                                    context,
-                                  ).copyWith(height: context.locale.languageCode == 'ar' ? 1.7 : 1),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                      _OrderTab(
+                        label: AppLocaleKey.previous.tr(),
+                        count: controller.completedOrders?.meta?.total ?? 0,
+                        selected: _tabController.index == 2,
                       ),
                     ],
                   ),
-                  Divider(color: AppColor.greyColor(context).withOpacity(0.2)),
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        WaitingOrdersDelegateWidget(delegateOrderController: delegateOrderController),
-                        OnGoingOrdersDelegateWidget(delegateOrderController: delegateOrderController),
-                        PreviousOrdersDelegateWidget(delegateOrderController: delegateOrderController),
-                      ],
-                    ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      WaitingOrdersDelegateWidget(delegateOrderController: controller),
+                      OnGoingOrdersDelegateWidget(delegateOrderController: controller),
+                      PreviousOrdersDelegateWidget(delegateOrderController: controller),
+                    ],
                   ),
-                ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _OrderTab extends StatelessWidget {
+  const _OrderTab({required this.label, required this.count, required this.selected});
+
+  final String label;
+  final int count;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tab(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label),
+            const SizedBox(width: 5),
+            Container(
+              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? const Color(0xffFD7201) : const Color(0xffDDE1E6),
+                borderRadius: BorderRadius.circular(9),
               ),
-            );
-          },
+              child: Text(
+                count.toString(),
+                style: TextStyle(
+                  color: selected ? Colors.white : const Color(0xff68707B),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
