@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -12,8 +13,14 @@ class DelegateCurrentTapList extends StatelessWidget {
   const DelegateCurrentTapList({super.key, required this.homeDelegateController});
   final HomeDelegateController homeDelegateController;
 
+  bool get _isGitHubPreview => kIsWeb && Uri.base.host.endsWith('github.io');
+
   @override
   Widget build(BuildContext context) {
+    if (_isGitHubPreview) {
+      return const NoCurrentOrderWidget();
+    }
+
     return NotificationListener<ScrollNotification>(
       onNotification: (ScrollNotification notification) {
         if (notification.metrics.pixels == notification.metrics.maxScrollExtent &&
