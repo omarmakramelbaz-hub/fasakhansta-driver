@@ -20,7 +20,7 @@ class SettingButton extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(19),
           child: Container(
-            minHeight: 62,
+            constraints: const BoxConstraints(minHeight: 62),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             decoration: BoxDecoration(
               color: Colors.white,
