@@ -34,13 +34,19 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
   List<Placemark>? placemarks;
   double? currentLat;
   double? currentLng;
+  double? _gpsAccuracy;
   GoogleMapController? gmc;
   Set<Marker> markers = {};
-  Timer? _debounce;
+  StreamSubscription<Position>? _positionSubscription;
 
   String? _resolvedAddress;
   String? _locationError;
   bool _isLocating = true;
+  bool _isLiveTracking = false;
+  bool _isResolvingAddress = false;
+  DateTime? _lastAddressResolveAt;
+  double? _lastAddressLat;
+  double? _lastAddressLng;
 
   bool get _isArabic => context.locale.languageCode == 'ar';
   bool get _hasLocation => currentLat != null && currentLng != null;
@@ -53,15 +59,19 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
 
   @override
   void dispose() {
-    _debounce?.cancel();
+    _positionSubscription?.cancel();
     gmc?.dispose();
     super.dispose();
   }
 
   Future<void> _determinePosition() async {
+    await _positionSubscription?.cancel();
+    _positionSubscription = null;
+
     if (mounted) {
       setState(() {
         _isLocating = true;
+        _isLiveTracking = false;
         _locationError = null;
       });
     }
@@ -87,49 +97,151 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
       final position = await Geolocator.getCurrentPosition().timeout(
         const Duration(seconds: 15),
       );
-      await _updateLocation(position.latitude, position.longitude);
+
+      await _handleLivePosition(
+        position,
+        forceCamera: true,
+        forceAddress: true,
+      );
+      _startLiveTracking();
     } catch (e) {
-      log('Failed to get current location: $e');
+      log('Failed to start live location: $e');
 
       final savedLat = HiveMethods.getLat();
       final savedLng = HiveMethods.getLan();
 
       if (savedLat != null && savedLng != null) {
-        await _updateLocation(savedLat, savedLng);
+        await _applyFallbackLocation(savedLat, savedLng);
         if (mounted) {
           setState(() {
             _locationError = _isArabic
-                ? 'تعذر الوصول لموقع الجهاز. تم عرض آخر موقع محفوظ ويمكنك تغييره من الخريطة.'
-                : 'Could not access device location. Your last saved location is shown and can be changed.';
+                ? 'تعذر تشغيل التتبع المباشر. تم عرض آخر موقع محفوظ، اضغط زر الموقع للمحاولة مرة أخرى.'
+                : 'Live tracking could not start. Your last saved location is shown; tap the location button to retry.';
           });
         }
       } else if (mounted) {
         setState(() {
           _isLocating = false;
+          _isLiveTracking = false;
           _locationError = _isArabic
-              ? 'تعذر تحديد موقعك تلقائياً. اضغط على الخريطة لاختيار موقعك.'
-              : 'Could not detect your location automatically. Tap the map to choose it.';
+              ? 'تعذر تحديد موقعك. فعّل إذن الموقع ثم اضغط زر الموقع للمحاولة مرة أخرى.'
+              : 'Could not detect your location. Enable location permission and tap the location button to retry.';
         });
       }
     }
   }
 
-  Future<void> _updateLocation(double lat, double lng) async {
+  void _startLiveTracking() {
+    _positionSubscription?.cancel();
+
+    const locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 5,
+    );
+
+    _positionSubscription = Geolocator.getPositionStream(
+      locationSettings: locationSettings,
+    ).listen(
+      (position) {
+        _handleLivePosition(position);
+      },
+      onError: (Object error) {
+        log('Live location stream error: $error');
+        if (!mounted) return;
+        setState(() {
+          _isLiveTracking = false;
+          _isLocating = false;
+          _locationError = _isArabic
+              ? 'توقف التتبع المباشر مؤقتاً. اضغط زر الموقع لإعادة تشغيله.'
+              : 'Live tracking stopped temporarily. Tap the location button to restart it.';
+        });
+      },
+    );
+
+    if (mounted) {
+      setState(() {
+        _isLiveTracking = true;
+        _isLocating = false;
+        _locationError = null;
+      });
+    }
+  }
+
+  Future<void> _handleLivePosition(
+    Position position, {
+    bool forceCamera = false,
+    bool forceAddress = false,
+  }) async {
+    if (!mounted) return;
+
+    final lat = position.latitude;
+    final lng = position.longitude;
+    final heading = position.heading.isFinite && position.heading >= 0
+        ? position.heading
+        : 0.0;
+
+    setState(() {
+      currentLat = lat;
+      currentLng = lng;
+      _gpsAccuracy = position.accuracy;
+      _isLocating = false;
+      _isLiveTracking = true;
+      _locationError = null;
+      markers = {
+        Marker(
+          markerId: const MarkerId('delegateLiveLocation'),
+          position: LatLng(lat, lng),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+          rotation: heading,
+          flat: heading > 0,
+          anchor: const Offset(.5, .5),
+          infoWindow: InfoWindow(
+            title: _isArabic ? 'موقع المندوب الحالي' : 'Current delegate location',
+          ),
+        ),
+      };
+    });
+
+    // Keep the latest GPS position locally so the screen always has a useful
+    // fallback even if the device temporarily loses its location signal.
+    HiveMethods.updateLat(lat);
+    HiveMethods.updateLan(lng);
+
+    try {
+      if (gmc != null) {
+        await gmc!.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: LatLng(lat, lng),
+              zoom: forceCamera ? 16.5 : 16,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      log('Map camera follow failed: $e');
+    }
+
+    await _resolveAddressIfNeeded(lat, lng, force: forceAddress);
+  }
+
+  Future<void> _applyFallbackLocation(double lat, double lng) async {
     if (!mounted) return;
 
     setState(() {
       currentLat = lat;
       currentLng = lng;
-      _isLocating = true;
-      _locationError = null;
+      _gpsAccuracy = null;
+      _isLocating = false;
+      _isLiveTracking = false;
       markers = {
         Marker(
-          markerId: const MarkerId('selectedLocation'),
+          markerId: const MarkerId('savedLocation'),
           position: LatLng(lat, lng),
-          draggable: true,
-          onDragEnd: (position) {
-            _updateLocation(position.latitude, position.longitude);
-          },
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+          infoWindow: InfoWindow(
+            title: _isArabic ? 'آخر موقع محفوظ' : 'Last saved location',
+          ),
         ),
       };
     });
@@ -141,9 +253,41 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
         ),
       );
     } catch (e) {
-      log('Map camera animation failed: $e');
+      log('Fallback map camera failed: $e');
     }
 
+    await _resolveAddressIfNeeded(lat, lng, force: true);
+  }
+
+  Future<void> _resolveAddressIfNeeded(
+    double lat,
+    double lng, {
+    bool force = false,
+  }) async {
+    if (_isResolvingAddress) return;
+
+    final now = DateTime.now();
+    final elapsed = _lastAddressResolveAt == null
+        ? const Duration(days: 1)
+        : now.difference(_lastAddressResolveAt!);
+    final moved = _lastAddressLat == null || _lastAddressLng == null
+        ? double.infinity
+        : Geolocator.distanceBetween(
+            _lastAddressLat!,
+            _lastAddressLng!,
+            lat,
+            lng,
+          );
+
+    // GPS can emit often while driving. Reverse geocoding is intentionally
+    // throttled; the marker/coordinates still update on every position event.
+    if (!force && elapsed < const Duration(seconds: 15) && moved < 35) {
+      return;
+    }
+
+    _lastAddressResolveAt = now;
+    _lastAddressLat = lat;
+    _lastAddressLng = lng;
     await _resolveAddress(lat, lng);
   }
 
@@ -154,14 +298,14 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
       if (!mounted) return;
       setState(() {
         placemarks = null;
-        _resolvedAddress = _isArabic
-            ? 'الموقع المحدد على الخريطة'
-            : 'Selected map location';
-        _isLocating = false;
+        _resolvedAddress = _isLiveTracking
+            ? (_isArabic ? 'موقع المندوب الحالي' : 'Current delegate location')
+            : (_isArabic ? 'آخر موقع محفوظ' : 'Last saved location');
       });
       return;
     }
 
+    _isResolvingAddress = true;
     try {
       final result = await placemarkFromCoordinates(lat, lng);
       if (!mounted) return;
@@ -176,35 +320,27 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
       setState(() {
         placemarks = result;
         _resolvedAddress = parts.isEmpty ? coordinateText : parts.join(', ');
-        _isLocating = false;
       });
     } catch (e) {
       log('Reverse geocoding failed: $e');
       if (!mounted) return;
       setState(() {
         placemarks = null;
-        _resolvedAddress = _isArabic
-            ? 'الموقع المحدد على الخريطة'
-            : 'Selected map location';
-        _isLocating = false;
+        _resolvedAddress = _isLiveTracking
+            ? (_isArabic ? 'موقع المندوب الحالي' : 'Current delegate location')
+            : coordinateText;
       });
+    } finally {
+      _isResolvingAddress = false;
     }
-  }
-
-  void _onMapTap(LatLng latLng) {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(
-      const Duration(milliseconds: 180),
-      () => _updateLocation(latLng.latitude, latLng.longitude),
-    );
   }
 
   void _onConfirmLocation(BuildContext context) {
     if (!_hasLocation) {
       CommonMethods.showError(
         message: _isArabic
-            ? 'حدد موقعك على الخريطة أولاً'
-            : 'Choose your location on the map first',
+            ? 'انتظر حتى يتم تحديد موقعك أولاً'
+            : 'Wait until your location is detected first',
       );
       return;
     }
@@ -246,7 +382,15 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
       return _isArabic ? 'جارٍ تحديد موقعك...' : 'Detecting your location...';
     }
     if (_resolvedAddress != null) return _resolvedAddress!;
-    return _isArabic ? 'حدد نقطة على الخريطة' : 'Choose a point on the map';
+    return _isArabic ? 'في انتظار إشارة GPS' : 'Waiting for GPS signal';
+  }
+
+  String get _accuracyText {
+    if (!_isLiveTracking || _gpsAccuracy == null) {
+      return _isArabic ? 'الموقع المحفوظ' : 'Saved location';
+    }
+    final meters = _gpsAccuracy!.round().clamp(1, 9999);
+    return _isArabic ? 'دقة GPS ±$meters م' : 'GPS accuracy ±${meters}m';
   }
 
   @override
@@ -399,8 +543,8 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
                 const SizedBox(height: 4),
                 Text(
                   _isArabic
-                      ? 'حدّث موقعك بدقة لتسهيل استلام الطلبات'
-                      : 'Set your location precisely for smoother deliveries',
+                      ? 'يتم تحديث وعرض موقع المندوب تلقائياً أثناء الحركة'
+                      : 'Your delegate location updates automatically while moving',
                   style: const TextStyle(
                     color: _softText,
                     fontSize: 12.5,
@@ -452,7 +596,7 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
               ],
             ),
             child: const Icon(
-              Icons.location_on_rounded,
+              Icons.gps_fixed_rounded,
               color: Colors.white,
               size: 29,
             ),
@@ -463,7 +607,7 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _isArabic ? 'حدد موقعك الحالي' : 'Choose your current location',
+                  _isArabic ? 'موقعك الحالي مباشر' : 'Your live location',
                   style: const TextStyle(
                     color: _navy,
                     fontSize: 17,
@@ -473,8 +617,8 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
                 const SizedBox(height: 5),
                 Text(
                   _isArabic
-                      ? 'اضغط على الخريطة أو اسحب العلامة لتحديد النقطة بدقة.'
-                      : 'Tap the map or drag the marker to set the exact point.',
+                      ? 'العلامة تتحرك تلقائياً مع موقع المندوب الحقيقي على GPS.'
+                      : 'The marker follows the delegate’s real GPS position automatically.',
                   style: const TextStyle(
                     color: _softText,
                     fontSize: 12.5,
@@ -489,24 +633,30 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
-              color: _hasLocation ? const Color(0xffECF8F1) : const Color(0xffFFF4E8),
+              color: _isLiveTracking
+                  ? const Color(0xffECF8F1)
+                  : const Color(0xffFFF4E8),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  _hasLocation ? Icons.check_circle_rounded : Icons.gps_not_fixed_rounded,
+                  _isLiveTracking
+                      ? Icons.wifi_tethering_rounded
+                      : Icons.gps_not_fixed_rounded,
                   size: 15,
-                  color: _hasLocation ? const Color(0xff319B63) : _orange,
+                  color: _isLiveTracking ? const Color(0xff319B63) : _orange,
                 ),
                 const SizedBox(width: 5),
                 Text(
-                  _hasLocation
-                      ? (_isArabic ? 'تم التحديد' : 'Selected')
-                      : (_isArabic ? 'غير محدد' : 'Not set'),
+                  _isLiveTracking
+                      ? (_isArabic ? 'مباشر' : 'LIVE')
+                      : (_isLocating
+                          ? (_isArabic ? 'جاري...' : 'Locating')
+                          : (_isArabic ? 'متوقف' : 'Paused')),
                   style: TextStyle(
-                    color: _hasLocation ? const Color(0xff267C51) : _orange,
+                    color: _isLiveTracking ? const Color(0xff267C51) : _orange,
                     fontSize: 10.5,
                     fontWeight: FontWeight.w800,
                   ),
@@ -540,8 +690,6 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
           children: [
             Positioned.fill(
               child: GoogleMap(
-                onTap: _onMapTap,
-                onLongPress: _onMapTap,
                 markers: markers,
                 mapType: MapType.normal,
                 myLocationButtonEnabled: false,
@@ -591,17 +739,25 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.touch_app_rounded,
-                          color: _orange,
+                        Icon(
+                          _isLiveTracking
+                              ? Icons.wifi_tethering_rounded
+                              : Icons.gps_not_fixed_rounded,
+                          color: _isLiveTracking
+                              ? const Color(0xff319B63)
+                              : _orange,
                           size: 17,
                         ),
                         const SizedBox(width: 6),
                         Flexible(
                           child: Text(
-                            _isArabic
-                                ? 'اضغط على أي نقطة لتحديدها'
-                                : 'Tap anywhere to select a point',
+                            _isLiveTracking
+                                ? (_isArabic
+                                    ? 'تتبع مباشر لموقع المندوب'
+                                    : 'Live delegate location tracking')
+                                : (_isArabic
+                                    ? 'في انتظار إشارة الموقع'
+                                    : 'Waiting for location signal'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -693,7 +849,7 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        AppLocaleKey.area.tr(),
+                        _isArabic ? 'الموقع الحالي' : 'Current location',
                         style: const TextStyle(
                           color: _navy,
                           fontSize: 15,
@@ -705,13 +861,19 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                         decoration: BoxDecoration(
-                          color: const Color(0xffECF8F1),
+                          color: _isLiveTracking
+                              ? const Color(0xffECF8F1)
+                              : const Color(0xffFFF4E8),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          _isArabic ? 'جاهز للحفظ' : 'Ready to save',
-                          style: const TextStyle(
-                            color: Color(0xff267C51),
+                          _isLiveTracking
+                              ? (_isArabic ? 'يتحدث تلقائياً' : 'Auto updating')
+                              : (_isArabic ? 'آخر موقع' : 'Last location'),
+                          style: TextStyle(
+                            color: _isLiveTracking
+                                ? const Color(0xff267C51)
+                                : _orange,
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
                           ),
@@ -734,31 +896,62 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
                 const SizedBox(height: 9),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
                   decoration: BoxDecoration(
                     color: const Color(0xffF7F8FA),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      const Icon(
-                        Icons.pin_drop_outlined,
-                        color: Color(0xff9AA0AA),
-                        size: 15,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          _coordinatesText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xff747B86),
-                            fontSize: 11.5,
-                            letterSpacing: .2,
-                            fontWeight: FontWeight.w600,
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.pin_drop_outlined,
+                            color: Color(0xff9AA0AA),
+                            size: 15,
                           ),
-                        ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _coordinatesText,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xff747B86),
+                                fontSize: 11.5,
+                                letterSpacing: .2,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 7),
+                      Row(
+                        children: [
+                          Icon(
+                            _isLiveTracking
+                                ? Icons.gps_fixed_rounded
+                                : Icons.history_rounded,
+                            color: _isLiveTracking
+                                ? const Color(0xff319B63)
+                                : const Color(0xff9AA0AA),
+                            size: 15,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _accuracyText,
+                              style: TextStyle(
+                                color: _isLiveTracking
+                                    ? const Color(0xff267C51)
+                                    : const Color(0xff747B86),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
