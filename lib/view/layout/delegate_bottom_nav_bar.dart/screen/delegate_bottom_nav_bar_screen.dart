@@ -185,7 +185,7 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Icon(
-                                  Directionality.of(context) == TextDirection.rtl
+                                  context.locale.languageCode == 'ar'
                                       ? Icons.chevron_left_rounded
                                       : Icons.chevron_right_rounded,
                                   color: const Color(0xffFD7201),
