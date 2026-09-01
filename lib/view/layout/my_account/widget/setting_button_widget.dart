@@ -1,28 +1,80 @@
-import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/svg.dart';
-
-import '../../../../helpers/images/app_images.dart';
-import '../../../../helpers/theme/app_text_style.dart';
 
 class SettingButton extends StatelessWidget {
   final String title;
   final VoidCallback onTap;
+
   const SettingButton({super.key, required this.title, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Row(
-          children: [
-            Text(title, style: AppTextStyle.text16MS(context)),
-            const Spacer(),
-            SvgPicture.asset(context.locale.languageCode == 'ar' ? AppImages.backLeftIcon : AppImages.backIosIcon),
-            const SizedBox(width: 10),
-          ],
+    const navy = Color(0xff082A4D);
+    const orange = Color(0xffFD7201);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(19),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(19),
+          child: Container(
+            minHeight: 62,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(19),
+              border: Border.all(color: const Color(0xffECEEF1)),
+              boxShadow: [
+                BoxShadow(
+                  color: navy.withOpacity(.045),
+                  blurRadius: 15,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xffFFF0E3),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.tune_rounded, color: orange, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: navy,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xffF7F8FA),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Directionality.of(context) == TextDirection.rtl
+                        ? Icons.chevron_left_rounded
+                        : Icons.chevron_right_rounded,
+                    color: orange,
+                    size: 21,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
