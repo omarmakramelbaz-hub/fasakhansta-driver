@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
@@ -90,9 +92,7 @@ class PasswordChangedSuccessfullyScreen extends StatelessWidget {
                                 ],
                               ),
                               child: Row(
-                                textDirection: isArabic
-                                    ? TextDirection.rtl
-                                    : TextDirection.ltr,
+                                textDirection: isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
                                 children: [
                                   Container(
                                     width: 42,
