@@ -157,7 +157,7 @@ class _CustomFormFieldState extends State<CustomFormField> {
                 filled: true,
                 border: _border(color: widget.unFocusColor ?? AppColor.textFormBorderColor(context)),
                 disabledBorder: _border(color: widget.unFocusColor ?? AppColor.textFormBorderColor(context)),
-                focusedBorder: _border(color: widget.unFocusColor ?? AppColor.mainAppColor(context)),
+                focusedBorder: _border(color: widget.focusColor ?? AppColor.mainAppColor(context)),
                 enabledBorder: _border(color: widget.unFocusColor ?? AppColor.textFormBorderColor(context)),
                 contentPadding: widget.contentPadding ?? const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
                 prefixIcon: widget.country != null && context.locale == const Locale('en')
