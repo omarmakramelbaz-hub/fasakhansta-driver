@@ -2,8 +2,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../../../helpers/locale/app_locale_key.dart';
-import '../../../helpers/theme/app_colors.dart';
-import '../../../helpers/theme/app_text_style.dart';
 import '../../custom_widgets/custom_image/custom_image.dart';
 import '../../layout/order/model/delegate_order_model.dart';
 
@@ -14,62 +12,81 @@ class OrderDelegateDetailsItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const navy = Color(0xff082A4D);
+    const softText = Color(0xff7D8490);
+    const orange = Color(0xffFD7201);
+
+    final feature = items?.productFeatureName == 'kilo'
+        ? AppLocaleKey.kilo.tr()
+        : items?.productFeatureName == 'quarter'
+            ? AppLocaleKey.quarter.tr()
+            : items?.productFeatureName == 'half'
+                ? AppLocaleKey.half.tr()
+                : '';
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 10),
-      child: Row(
-        children: [
-          CustomImage(
-            height: 83,
-            width: 120,
-            radius: 12,
-            path: items?.resturantProduct?.productImage ?? '',
-            type: ImageType.network,
-            fit: BoxFit.cover,
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text.rich(
-              TextSpan(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      child: Container(
+        padding: const EdgeInsets.all(11),
+        decoration: BoxDecoration(
+          color: const Color(0xffFAFAFB),
+          borderRadius: BorderRadius.circular(19),
+          border: Border.all(color: const Color(0xffECEEF1)),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(15),
+              child: CustomImage(
+                height: 78,
+                width: 92,
+                path: items?.resturantProduct?.productImage ?? '',
+                type: ImageType.network,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextSpan(text: items?.resturantProduct?.productName, style: AppTextStyle.text16RS(context)),
-                  const TextSpan(text: '\n\n'),
-                  TextSpan(
-                    text: AppLocaleKey.pound.tr().replaceAll('{}', '${items?.price}'),
-                    style: AppTextStyle.text16RG(context),
+                  Text(
+                    items?.resturantProduct?.productName ?? '',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: navy, fontSize: 14.5, height: 1.35, fontWeight: FontWeight.w800),
                   ),
-                  const TextSpan(text: '\n'),
-                  items?.productFeatureName != null
-                      ? TextSpan(
-                          text: AppLocaleKey.quantity.tr().replaceAll('{}', ''),
-                          style: AppTextStyle.text16RG(context),
-                        )
-                      : const TextSpan(text: ''),
-                  TextSpan(
-                    text: items?.productFeatureName == 'kilo'
-                        ? AppLocaleKey.kilo.tr()
-                        : items?.productFeatureName == 'quarter'
-                        ? AppLocaleKey.quarter.tr()
-                        : items?.productFeatureName == 'half'
-                        ? AppLocaleKey.half.tr()
-                        : '',
-                    style: AppTextStyle.text16RG(context),
+                  const SizedBox(height: 8),
+                  Text(
+                    AppLocaleKey.pound.tr().replaceAll('{}', '${items?.price ?? 0}'),
+                    style: const TextStyle(color: orange, fontSize: 14, fontWeight: FontWeight.w900),
                   ),
+                  if (feature.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      '${AppLocaleKey.quantity.tr().replaceAll('{}', '')} $feature',
+                      style: const TextStyle(color: softText, fontSize: 11.5, fontWeight: FontWeight.w600),
+                    ),
+                  ],
                 ],
               ),
             ),
-          ),
-          Container(
-            height: 26,
-            width: 45,
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(5), color: AppColor.lightGreyColor(context)),
-            child: Center(
+            const SizedBox(width: 8),
+            Container(
+              constraints: const BoxConstraints(minWidth: 42, minHeight: 38),
+              padding: const EdgeInsets.symmetric(horizontal: 9),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0xffFFF0E3),
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Text(
-                '${items?.qty}',
-                style: AppTextStyle.text18BS(context).copyWith(height: context.locale.languageCode == 'ar' ? 1.7 : 1),
+                '×${items?.qty ?? 0}',
+                style: const TextStyle(color: navy, fontSize: 13, fontWeight: FontWeight.w900),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
