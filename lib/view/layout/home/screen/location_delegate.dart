@@ -4,6 +4,7 @@ import 'dart:developer';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -16,6 +17,7 @@ import '../../../../helpers/utils/navigator_methods.dart';
 import '../../../custom_widgets/buttons/custom_button.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../../delegate_bottom_nav_bar.dart/screen/delegate_bottom_nav_bar_screen.dart';
+import '../widget/delegate_motorcycle_marker.dart';
 
 class DelegateLocationScreen extends StatefulWidget {
   static const String routeName = 'DelegateLocationScreen';
@@ -35,9 +37,14 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
   double? currentLat;
   double? currentLng;
   double? _gpsAccuracy;
+  double _currentHeading = 0;
   GoogleMapController? gmc;
   Set<Marker> markers = {};
   StreamSubscription<Position>? _positionSubscription;
+
+  BitmapDescriptor _delegateMarkerIcon =
+      BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
+  String? _modernMapStyle;
 
   String? _resolvedAddress;
   String? _locationError;
@@ -54,6 +61,7 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
   @override
   void initState() {
     super.initState();
+    _prepareMapVisuals();
     _determinePosition();
   }
 
@@ -62,6 +70,44 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
     _positionSubscription?.cancel();
     gmc?.dispose();
     super.dispose();
+  }
+
+  Future<void> _prepareMapVisuals() async {
+    try {
+      final marker = DelegateMotorcycleMarker.create();
+      final mapStyle = await rootBundle.loadString(
+        'assets/map_styles/modern_light_map_style.json',
+      );
+      if (!mounted) return;
+      setState(() {
+        _delegateMarkerIcon = marker;
+        _modernMapStyle = mapStyle;
+      });
+      await gmc?.setMapStyle(mapStyle);
+      _refreshMarker();
+    } catch (e) {
+      log('Preparing modern map visuals failed: $e');
+    }
+  }
+
+  void _refreshMarker() {
+    if (!_hasLocation || !mounted) return;
+    setState(() {
+      markers = {
+        Marker(
+          markerId: const MarkerId('delegateLiveLocation'),
+          position: LatLng(currentLat!, currentLng!),
+          icon: _delegateMarkerIcon,
+          rotation: _currentHeading,
+          flat: true,
+          anchor: const Offset(.5, .72),
+          zIndex: 10,
+          infoWindow: InfoWindow(
+            title: _isArabic ? 'موقع المندوب الحالي' : 'Current delegate location',
+          ),
+        ),
+      };
+    });
   }
 
   Future<void> _determinePosition() async {
@@ -178,11 +224,12 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
     final lng = position.longitude;
     final heading = position.heading.isFinite && position.heading >= 0
         ? position.heading
-        : 0.0;
+        : _currentHeading;
 
     setState(() {
       currentLat = lat;
       currentLng = lng;
+      _currentHeading = heading;
       _gpsAccuracy = position.accuracy;
       _isLocating = false;
       _isLiveTracking = true;
@@ -191,10 +238,11 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
         Marker(
           markerId: const MarkerId('delegateLiveLocation'),
           position: LatLng(lat, lng),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+          icon: _delegateMarkerIcon,
           rotation: heading,
-          flat: heading > 0,
-          anchor: const Offset(.5, .5),
+          flat: true,
+          anchor: const Offset(.5, .72),
+          zIndex: 10,
           infoWindow: InfoWindow(
             title: _isArabic ? 'موقع المندوب الحالي' : 'Current delegate location',
           ),
@@ -202,8 +250,6 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
       };
     });
 
-    // Keep the latest GPS position locally so the screen always has a useful
-    // fallback even if the device temporarily loses its location signal.
     HiveMethods.updateLat(lat);
     HiveMethods.updateLan(lng);
 
@@ -213,7 +259,9 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
           CameraUpdate.newCameraPosition(
             CameraPosition(
               target: LatLng(lat, lng),
-              zoom: forceCamera ? 16.5 : 16,
+              zoom: forceCamera ? 17.2 : 16.8,
+              tilt: 38,
+              bearing: heading,
             ),
           ),
         );
@@ -238,7 +286,9 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
         Marker(
           markerId: const MarkerId('savedLocation'),
           position: LatLng(lat, lng),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+          icon: _delegateMarkerIcon,
+          anchor: const Offset(.5, .72),
+          zIndex: 10,
           infoWindow: InfoWindow(
             title: _isArabic ? 'آخر موقع محفوظ' : 'Last saved location',
           ),
@@ -249,7 +299,11 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
     try {
       await gmc?.animateCamera(
         CameraUpdate.newCameraPosition(
-          CameraPosition(target: LatLng(lat, lng), zoom: 16),
+          CameraPosition(
+            target: LatLng(lat, lng),
+            zoom: 16.8,
+            tilt: 32,
+          ),
         ),
       );
     } catch (e) {
@@ -279,8 +333,6 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
             lng,
           );
 
-    // GPS can emit often while driving. Reverse geocoding is intentionally
-    // throttled; the marker/coordinates still update on every position event.
     if (!force && elapsed < const Duration(seconds: 15) && moved < 35) {
       return;
     }
@@ -396,7 +448,7 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.sizeOf(context).height;
-    final mapHeight = (screenHeight * .46).clamp(330.0, 500.0).toDouble();
+    final mapHeight = (screenHeight * .48).clamp(350.0, 520.0).toDouble();
 
     return Scaffold(
       backgroundColor: const Color(0xffF7F8FA),
@@ -596,7 +648,7 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
               ],
             ),
             child: const Icon(
-              Icons.gps_fixed_rounded,
+              Icons.two_wheeler_rounded,
               color: Colors.white,
               size: 29,
             ),
@@ -617,8 +669,8 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
                 const SizedBox(height: 5),
                 Text(
                   _isArabic
-                      ? 'العلامة تتحرك تلقائياً مع موقع المندوب الحقيقي على GPS.'
-                      : 'The marker follows the delegate’s real GPS position automatically.',
+                      ? 'الموتوسيكل يتحرك ويدور تلقائياً مع موقع واتجاه المندوب الحقيقي.'
+                      : 'The motorcycle follows the delegate’s real GPS position and heading.',
                   style: const TextStyle(
                     color: _softText,
                     fontSize: 12.5,
@@ -693,18 +745,25 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
                 markers: markers,
                 mapType: MapType.normal,
                 myLocationButtonEnabled: false,
-                myLocationEnabled: !kIsWeb,
+                myLocationEnabled: false,
                 mapToolbarEnabled: false,
                 zoomControlsEnabled: false,
                 compassEnabled: false,
-                onMapCreated: (controller) {
+                buildingsEnabled: true,
+                trafficEnabled: false,
+                onMapCreated: (controller) async {
                   gmc = controller;
+                  if (_modernMapStyle != null) {
+                    await controller.setMapStyle(_modernMapStyle);
+                  }
                   if (_hasLocation) {
-                    gmc!.animateCamera(
+                    await controller.animateCamera(
                       CameraUpdate.newCameraPosition(
                         CameraPosition(
                           target: LatLng(currentLat!, currentLng!),
-                          zoom: 16,
+                          zoom: 16.8,
+                          tilt: 38,
+                          bearing: _currentHeading,
                         ),
                       ),
                     );
@@ -712,7 +771,8 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
                 },
                 initialCameraPosition: CameraPosition(
                   target: LatLng(currentLat ?? 31.043867, currentLng ?? 31.388388),
-                  zoom: 14,
+                  zoom: 15.5,
+                  tilt: 32,
                 ),
               ),
             ),
