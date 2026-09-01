@@ -53,6 +53,53 @@ jobs:
       - name: Build Flutter Web
         run: flutter build web --release --base-href "/fasakhansta-driver/"
 
+      - name: Force fresh preview assets
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          build = os.environ.get('GITHUB_SHA', 'dev')[:12]
+          root = Path('build/web')
+          index = root / 'index.html'
+          bootstrap = root / 'flutter_bootstrap.js'
+          main_js = root / 'main.dart.js'
+
+          if main_js.exists() and bootstrap.exists():
+              versioned_name = f'main.dart.{build}.js'
+              (root / versioned_name).write_bytes(main_js.read_bytes())
+              bootstrap_text = bootstrap.read_text(encoding='utf-8')
+              bootstrap_text = bootstrap_text.replace('main.dart.js', versioned_name)
+              bootstrap.write_text(bootstrap_text, encoding='utf-8')
+
+          html = index.read_text(encoding='utf-8')
+          original = '<script src="flutter_bootstrap.js" async></script>'
+          loader = f'''<script>
+          (async function () {{
+            try {{
+              if ('serviceWorker' in navigator) {{
+                const regs = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(regs.map((r) => r.unregister()));
+              }}
+              if ('caches' in window) {{
+                const keys = await caches.keys();
+                await Promise.all(keys.map((k) => caches.delete(k)));
+              }}
+            }} catch (_) {{}}
+            const script = document.createElement('script');
+            script.src = 'flutter_bootstrap.js?build={build}';
+            script.async = true;
+            document.body.appendChild(script);
+          }})();
+          </script>'''
+          if original in html:
+              html = html.replace(original, loader)
+          else:
+              html = html.replace('</body>', loader + '\n</body>')
+          index.write_text(html, encoding='utf-8')
+          PY
+
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
         with:
