@@ -273,7 +273,7 @@ class _SecurityIllustration extends StatelessWidget {
       height: height,
       child: LayoutBuilder(
         builder: (context, box) {
-          final scale = (box.maxHeight / 235).clamp(.72, 1.0);
+          final scale = (box.maxHeight / 235).clamp(.72, 1.0).toDouble();
           final phoneWidth = 104.0 * scale;
           final phoneHeight = 178.0 * scale;
 
