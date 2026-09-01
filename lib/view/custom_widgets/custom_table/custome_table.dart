@@ -1,24 +1,16 @@
 import 'package:flutter/material.dart';
 
-import '../../../helpers/theme/app_colors.dart';
-import '../../../helpers/theme/app_text_style.dart';
-
 class CustomAppTable extends StatefulWidget {
   const CustomAppTable({
     super.key,
     required this.columns,
     required this.rows,
     this.onDeleteRow,
-    // required this.cells,
   });
 
   final List<String> columns;
   final List<DataRow> rows;
-
-  // final List<DataCell> cells;
   final void Function(int)? onDeleteRow;
-
-  // Define the callback function
 
   @override
   State<CustomAppTable> createState() => _CustomAppTableState();
@@ -27,27 +19,49 @@ class CustomAppTable extends StatefulWidget {
 class _CustomAppTableState extends State<CustomAppTable> {
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingRowColor: WidgetStateProperty.resolveWith<Color?>((Set<WidgetState> states) {
-          if (states.contains(WidgetState.hovered)) {
-            return Theme.of(context).colorScheme.primary.withOpacity(0.8);
-          }
-          return AppColor.whiteColor(context); // Use the default value.
-        }),
-        // decoration: BoxDecoration(
-        //     color: AppColor.greyColor(context).withOpacity(0.01),
-        //    ),
-        border: TableBorder.all(color: AppColor.greyColor(context).withOpacity(0.2), width: 1),
-        dividerThickness: 0.5,
-        headingTextStyle: AppTextStyle.text16MG(context),
-        dataTextStyle: AppTextStyle.text16MG(context),
-        columns: List.generate(
-          widget.columns.length,
-          (index) => DataColumn(label: Center(child: Text(widget.columns[index]))),
+    const navy = Color(0xff082A4D);
+    const softText = Color(0xff7D8490);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(17),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          horizontalMargin: 14,
+          columnSpacing: 24,
+          headingRowHeight: 52,
+          dataRowMinHeight: 50,
+          dataRowMaxHeight: 62,
+          headingRowColor: WidgetStateProperty.resolveWith<Color?>((states) {
+            return states.contains(WidgetState.hovered)
+                ? const Color(0xffFFF0E3)
+                : const Color(0xffF6F7F9);
+          }),
+          dataRowColor: WidgetStateProperty.resolveWith<Color?>((states) {
+            return states.contains(WidgetState.hovered) ? const Color(0xffFFFDFC) : Colors.white;
+          }),
+          border: TableBorder.all(
+            color: const Color(0xffECEEF1),
+            width: 1,
+            borderRadius: BorderRadius.circular(17),
+          ),
+          dividerThickness: .7,
+          headingTextStyle: const TextStyle(
+            color: navy,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+          ),
+          dataTextStyle: const TextStyle(
+            color: softText,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+          ),
+          columns: List.generate(
+            widget.columns.length,
+            (index) => DataColumn(label: Center(child: Text(widget.columns[index]))),
+          ),
+          rows: List.generate(widget.rows.length, (index) => DataRow(cells: widget.rows[index].cells)),
         ),
-        rows: List.generate(widget.rows.length, (index) => DataRow(cells: widget.rows[index].cells)),
       ),
     );
   }
