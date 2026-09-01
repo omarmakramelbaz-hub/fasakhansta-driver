@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer';
 
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:provider/provider.dart';
@@ -29,15 +30,24 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
   num? balance;
   num? minWallet;
   num? minWalletDisabled;
-  late PusherController _pusherController;
+  PusherController? _pusherController;
   String? pusherWalletAmount;
+
+  bool get _isGitHubPreview => kIsWeb && Uri.base.host.endsWith('github.io');
 
   @override
   void initState() {
     super.initState();
+
+    if (_isGitHubPreview) {
+      balance = 0;
+      return;
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final authController = context.read<AuthController>(); // Saved reference
+      final authController = context.read<AuthController>();
       authController.getProfile().then((_) {
+        if (!mounted) return;
         setState(() {
           balance = authController.profile?.balance;
           minWallet = authController.profile?.minWallet;
@@ -45,8 +55,9 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
         });
       });
     });
+
     _pusherController = context.read<PusherController>();
-    _pusherController.addEventListener('balance.updated', _handleWalletUpdate);
+    _pusherController!.addEventListener('balance.updated', _handleWalletUpdate);
   }
 
   void _handleWalletUpdate(PusherEvent event) {
@@ -59,6 +70,7 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
 
       if (mounted) {
         context.read<AuthController>().getProfile().then((value) {
+          if (!mounted) return;
           setState(() {
             balance = context.read<AuthController>().profile?.balance;
             minWallet = context.read<AuthController>().profile?.minWallet;
@@ -71,6 +83,12 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
       log('Error handling Pusher event: $e');
       log('Stack trace: $stackTrace');
     }
+  }
+
+  @override
+  void dispose() {
+    _pusherController?.removeEventListener('balance.updated', _handleWalletUpdate);
+    super.dispose();
   }
 
   @override
