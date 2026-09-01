@@ -11,7 +11,6 @@ import '../../../../helpers/locale/app_locale_key.dart';
 import '../../../../helpers/utils/common_methods.dart';
 import '../../../../helpers/utils/country_code_methods.dart';
 import '../../../../helpers/utils/navigator_methods.dart';
-import '../../../custom_widgets/api_response_widget/api_response_widget.dart';
 import '../../../custom_widgets/buttons/custom_button.dart';
 import '../../../custom_widgets/custom_form_field/custom_form_field.dart';
 import '../../../custom_widgets/validation/validation_mixin.dart';
@@ -116,7 +115,7 @@ class _RegisterAsDeliveryScreenState extends State<RegisterAsDeliveryScreen> wit
       },
       child: Consumer<DelegateAccountController>(
         builder: (context, delegateAccountController, child) {
-          final hideInputs = delegateAccountController.setting?.delegateVendorSmallInfo == '1';
+          final hideInputs = delegateAccountController.setting?.delegateVendorSmallInfo != '0';
           return Scaffold(
             backgroundColor: Colors.white,
             body: Stack(
@@ -125,11 +124,7 @@ class _RegisterAsDeliveryScreenState extends State<RegisterAsDeliveryScreen> wit
                   child: IgnorePointer(child: CustomPaint(painter: _RegisterBackgroundPainter())),
                 ),
                 SafeArea(
-                  child: ApiResponseWidget(
-                    apiResponse: delegateAccountController.settingResponse,
-                    onReload: () => delegateAccountController.getSetting(),
-                    isEmpty: delegateAccountController.setting == null,
-                    child: SingleChildScrollView(
+                  child: SingleChildScrollView(
                       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: EdgeInsets.fromLTRB(horizontalPadding, 8, horizontalPadding, 34),
                       child: Center(
@@ -526,7 +521,6 @@ class _RegisterAsDeliveryScreenState extends State<RegisterAsDeliveryScreen> wit
                           ),
                         ),
                       ),
-                    ),
                   ),
                 ),
               ],
