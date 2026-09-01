@@ -103,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen> with ValidationMixin {
                             ),
                             SizedBox(height: veryCompact ? 2 : (compact ? 5 : 7)),
                             Text(
-                              _isArabic ? 'مرحباً بك' : 'Welcome',
+                              'Go Drive',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: navy,
