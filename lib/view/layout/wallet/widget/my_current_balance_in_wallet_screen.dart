@@ -4,63 +4,146 @@ import 'package:flutter_svg/svg.dart';
 
 import '../../../../helpers/images/app_images.dart';
 import '../../../../helpers/locale/app_locale_key.dart';
-import '../../../../helpers/theme/app_colors.dart';
-import '../../../../helpers/theme/app_text_style.dart';
 import '../../../custom_widgets/custom_loading/custom_shimmer.dart';
 import '../model/wallet_model.dart';
 
 class MyCurrentBalanceInWalletScreenWidget extends StatelessWidget {
   final WalletModel? wallet;
   final String? pusherWalletAmount;
-  const MyCurrentBalanceInWalletScreenWidget({super.key, required this.wallet, this.pusherWalletAmount});
+
+  const MyCurrentBalanceInWalletScreenWidget({
+    super.key,
+    required this.wallet,
+    this.pusherWalletAmount,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        height: 150,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: AppColor.whiteColor(context),
-          boxShadow: [
-            BoxShadow(color: AppColor.greyColor(context).withOpacity(0.2), offset: const Offset(2, 4), blurRadius: 10),
-          ],
+    const navy = Color(0xff082A4D);
+
+    return Container(
+      width: double.infinity,
+      height: 176,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xff082A4D), Color(0xff17466F)],
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 15),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: FittedBox(
-                          child: Text(AppLocaleKey.myCurrentBalance.tr(), style: AppTextStyle.text16MS(context)),
-                        ),
-                      ),
-                      const SizedBox(width: 5),
-                      SvgPicture.asset(AppImages.downIcon),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  wallet?.balance == null
-                      ? CustomShimmer(height: 20, width: 100, radius: 4, shimmerColor: AppColor.mainAppColor(context))
-                      : Text(
-                          AppLocaleKey.pound.tr().replaceAll(
-                            '{}',
-                            '${pusherWalletAmount ?? wallet?.balance?.toStringAsFixed(0).toString()}',
-                          ),
-                          style: AppTextStyle.text16BS(context),
-                        ),
-                ],
+        boxShadow: [
+          BoxShadow(
+            color: navy.withOpacity(.22),
+            blurRadius: 28,
+            offset: const Offset(0, 13),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -38,
+            top: -48,
+            child: Container(
+              width: 150,
+              height: 150,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(.05)),
+            ),
+          ),
+          Positioned(
+            right: 38,
+            bottom: -70,
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xffFD7201).withOpacity(.16),
               ),
             ),
-            SvgPicture.asset(AppImages.walletIcon),
-          ],
-        ),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      AppLocaleKey.myCurrentBalance.tr(),
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(.72),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 13),
+                    wallet?.balance == null
+                        ? const CustomShimmer(
+                            height: 28,
+                            width: 125,
+                            radius: 7,
+                            shimmerColor: Color(0xffFF8A08),
+                          )
+                        : Text(
+                            AppLocaleKey.pound.tr().replaceAll(
+                              '{}',
+                              pusherWalletAmount ?? wallet?.balance?.toStringAsFixed(0) ?? '0',
+                            ),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 30,
+                              height: 1.1,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(.09),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        context.locale.languageCode == 'ar' ? 'رصيد متاح للاستخدام' : 'Available balance',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(.76),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: 72,
+                height: 72,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xffFF9A1A), Color(0xffFF6500)],
+                  ),
+                  borderRadius: BorderRadius.circular(23),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xffFD7201).withOpacity(.32),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: SvgPicture.asset(
+                  AppImages.walletIcon,
+                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
