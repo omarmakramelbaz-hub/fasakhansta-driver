@@ -10,17 +10,36 @@ class CustomElevatedButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Card(
-        elevation: 5,
-        shape: const OvalBorder(),
-        child: SizedBox(
-          height: size ?? 34,
-          width: size ?? 34,
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: CustomImage(path: imagePath, type: ImageType.svg),
+    final resolvedSize = size ?? 38;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(resolvedSize * .36),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(resolvedSize * .36),
+          child: Container(
+            height: resolvedSize,
+            width: resolvedSize,
+            padding: EdgeInsets.all(resolvedSize * .24),
+            decoration: BoxDecoration(
+              color: const Color(0xffFFF0E3),
+              borderRadius: BorderRadius.circular(resolvedSize * .36),
+              border: Border.all(color: const Color(0xffFFE0C5)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xff082A4D).withOpacity(.06),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: CustomImage(
+              path: imagePath,
+              type: ImageType.svg,
+              color: const Color(0xffFD7201),
+            ),
           ),
         ),
       ),
