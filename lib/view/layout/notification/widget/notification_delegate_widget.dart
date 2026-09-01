@@ -151,7 +151,7 @@ class NotificationDelegateWidget extends StatelessWidget {
                           ),
                           const SizedBox(width: 3),
                           Icon(
-                            Directionality.of(context) == TextDirection.rtl
+                            context.locale.languageCode == 'ar'
                                 ? Icons.chevron_left_rounded
                                 : Icons.chevron_right_rounded,
                             color: orange,
