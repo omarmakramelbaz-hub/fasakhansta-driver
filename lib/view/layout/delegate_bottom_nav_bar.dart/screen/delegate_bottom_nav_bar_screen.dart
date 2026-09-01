@@ -6,7 +6,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:gap/gap.dart';
 import 'package:provider/provider.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
 
@@ -16,10 +15,8 @@ import '../../../../helpers/networking/notification_helper.dart';
 import '../../../../helpers/pusher_service/pusher_controller.dart';
 import '../../../../helpers/routes/app_routers_import.dart';
 import '../../../../helpers/theme/app_colors.dart';
-import '../../../../helpers/theme/app_text_style.dart';
 import '../../../../helpers/utils/common_methods.dart';
 import '../../../../helpers/utils/navigator_methods.dart';
-import '../../../custom_widgets/custom_app_bar/custom_app_bar.dart';
 import '../../../global/chat/screen/admin_chat_screen.dart';
 import '../../../global/chat/screen/chat_screen.dart';
 import '../../auth/controller/auth_controller.dart';
@@ -42,7 +39,6 @@ class DelegateBottomNavBarScreen extends StatefulWidget {
 }
 
 class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen> {
-  String? delegateAddress;
   PusherController? _pusherController;
   FirebaseMessaging? _messaging;
   NotificationHelper? _notificationHelper;
@@ -50,10 +46,6 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
   @override
   void initState() {
     super.initState();
-
-    // Keep native-only services completely uninitialized in the GitHub Pages
-    // preview. Merely evaluating FirebaseMessaging.instance can fail when
-    // Firebase was intentionally not initialized for web.
     if (!kIsWeb) {
       _messaging = FirebaseMessaging.instance;
       _notificationHelper = NotificationHelper();
@@ -65,14 +57,12 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
 
   void _handleDelegateUpdated(PusherEvent event) {
     try {
-      var jsonData = jsonDecode(event.data) as Map<String, dynamic>;
-
+      final jsonData = jsonDecode(event.data) as Map<String, dynamic>;
       if (mounted) {
-        var status = jsonData['order_id']['status']?.toString();
-        var orderNo = jsonData['order_id']['order_no']?.toString();
-        log('*************************************************************');
+        final status = jsonData['order_id']['status']?.toString();
+        final orderNo = jsonData['order_id']['order_no']?.toString();
         log(jsonData.toString());
-        if (status != null && status == 'pending') {
+        if (status == 'pending') {
           SoundNotification.instance.playLongSound();
           CommonMethods.showToast(message: '${AppLocaleKey.thereIsANewOrder.tr()} $orderNo');
         } else {
@@ -93,184 +83,176 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
 
   @override
   Widget build(BuildContext context) {
+    const navy = Color(0xff082A4D);
+
     return ChangeNotifierProvider(
-      create: (context) => DelegateBottomNavBarController(),
+      create: (_) => DelegateBottomNavBarController(),
       child: Consumer<DelegateBottomNavBarController>(
-        builder: (context, delegateBottomNavBarController, _) => PopScope(
-          canPop: delegateBottomNavBarController.screenIndex == 0,
-          onPopInvoked: delegateBottomNavBarController.onWillPop,
-          child: Scaffold(
-            appBar: CustomAppBar(
-              context,
-              height: 80,
-              leadingWidth: MediaQuery.of(context).size.width / 2,
-              leading: InkWell(
-                onTap: () {
-                  NavigatorMethods.pushNamed(context, DelegateLocationScreen.routeName);
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+        builder: (context, controller, _) {
+          final pages = <Widget>[
+            const HomeDelegateScreen(),
+            const OrdersDelegateScreen(),
+            const NotificationsDelegateScreen(),
+            const MyAccountDelegateScreen(),
+          ];
+
+          return PopScope(
+            canPop: controller.screenIndex == 0,
+            onPopInvoked: controller.onWillPop,
+            child: Scaffold(
+              backgroundColor: const Color(0xffF8F9FB),
+              extendBody: true,
+              resizeToAvoidBottomInset: false,
+              appBar: PreferredSize(
+                preferredSize: const Size.fromHeight(88),
+                child: SafeArea(
+                  bottom: false,
                   child: Padding(
-                    padding: const EdgeInsets.only(top: 15),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          AppLocaleKey.address.tr(),
-                          style: AppTextStyle.textW16R(context).copyWith(color: AppColor.blackColor(context)),
-                        ),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                context.watch<AuthController>().profile?.areaTitle ?? '',
-                                style: AppTextStyle.text16BS(context).copyWith(color: AppColor.blackColor(context)),
-                              ),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: Material(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(22),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(22),
+                        onTap: () => NavigatorMethods.pushNamed(context, DelegateLocationScreen.routeName),
+                        child: Container(
+                          height: 70,
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(color: const Color(0xffECEEF1)),
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xfffff8f2), Colors.white],
                             ),
-                          ],
+                            boxShadow: [
+                              BoxShadow(
+                                color: navy.withOpacity(.07),
+                                blurRadius: 22,
+                                offset: const Offset(0, 9),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xffFFF0E3),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: const Icon(
+                                  Icons.location_on_rounded,
+                                  color: Color(0xffFD7201),
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      AppLocaleKey.address.tr(),
+                                      style: const TextStyle(
+                                        color: Color(0xff7D8490),
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      context.watch<AuthController>().profile?.areaTitle ?? '',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: navy,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xffF7F8FA),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  Directionality.of(context) == TextDirection.rtl
+                                      ? Icons.chevron_left_rounded
+                                      : Icons.chevron_right_rounded,
+                                  color: const Color(0xffFD7201),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
-              title: const SizedBox(),
-              actions: const [Gap(10)],
-            ),
-            resizeToAvoidBottomInset: false,
-            body: [
-              const HomeDelegateScreen(),
-              const OrdersDelegateScreen(),
-              const NotificationsDelegateScreen(),
-              const MyAccountDelegateScreen(),
-            ][context.watch<DelegateBottomNavBarController>().screenIndex],
-            bottomNavigationBar: BottomAppBar(
-              color: AppColor.whiteColor(context),
-              shape: const CircularNotchedRectangle(),
-              notchMargin: 10,
-              child: SizedBox(
-                height: 80,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 20, right: 20),
+              body: IndexedStack(index: controller.screenIndex, children: pages),
+              bottomNavigationBar: SafeArea(
+                minimum: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                child: Container(
+                  height: 76,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(26),
+                    border: Border.all(color: const Color(0xffECEEF1)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: navy.withOpacity(.12),
+                        blurRadius: 30,
+                        offset: const Offset(0, 12),
+                      ),
+                    ],
+                  ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          IconButton(
-                            onPressed: () {
-                              context.read<DelegateBottomNavBarController>().updateIndex(0);
-                            },
-                            icon: SvgPicture.asset(
-                              delegateBottomNavBarController.screenIndex == 0
-                                  ? AppImages.homeFillIcon
-                                  : AppImages.homeIcon,
-                              colorFilter: ColorFilter.mode(
-                                delegateBottomNavBarController.screenIndex == 0
-                                    ? AppColor.mainAppColor(context)
-                                    : AppColor.greyColor(context),
-                                BlendMode.srcIn,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            AppLocaleKey.home.tr(),
-                            style: delegateBottomNavBarController.screenIndex == 0
-                                ? AppTextStyle.text14RM(context)
-                                : AppTextStyle.text14RG(context),
-                          ),
-                        ],
+                      _NavItem(
+                        label: AppLocaleKey.home.tr(),
+                        activeIcon: AppImages.homeFillIcon,
+                        inactiveIcon: AppImages.homeIcon,
+                        selected: controller.screenIndex == 0,
+                        onTap: () => controller.updateIndex(0),
                       ),
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          IconButton(
-                            onPressed: () {
-                              context.read<DelegateBottomNavBarController>().updateIndex(1);
-                            },
-                            icon: SvgPicture.asset(
-                              delegateBottomNavBarController.screenIndex == 1
-                                  ? AppImages.orderFillIcon
-                                  : AppImages.ordersIcon,
-                              colorFilter: ColorFilter.mode(
-                                delegateBottomNavBarController.screenIndex == 1
-                                    ? AppColor.mainAppColor(context)
-                                    : AppColor.greyColor(context),
-                                BlendMode.srcIn,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            AppLocaleKey.orders.tr(),
-                            style: delegateBottomNavBarController.screenIndex == 1
-                                ? AppTextStyle.text14RM(context)
-                                : AppTextStyle.text14RG(context),
-                          ),
-                        ],
+                      _NavItem(
+                        label: AppLocaleKey.orders.tr(),
+                        activeIcon: AppImages.orderFillIcon,
+                        inactiveIcon: AppImages.ordersIcon,
+                        selected: controller.screenIndex == 1,
+                        onTap: () => controller.updateIndex(1),
                       ),
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          IconButton(
-                            onPressed: () {
-                              context.read<DelegateBottomNavBarController>().updateIndex(2);
-                            },
-                            icon: SvgPicture.asset(
-                              delegateBottomNavBarController.screenIndex == 2
-                                  ? AppImages.notificationFillIcon
-                                  : AppImages.notificationsIcon,
-                              colorFilter: ColorFilter.mode(
-                                delegateBottomNavBarController.screenIndex == 2
-                                    ? AppColor.mainAppColor(context)
-                                    : AppColor.greyColor(context),
-                                BlendMode.srcIn,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            AppLocaleKey.notifications.tr(),
-                            style: delegateBottomNavBarController.screenIndex == 2
-                                ? AppTextStyle.text14RM(context)
-                                : AppTextStyle.text14RG(context),
-                          ),
-                        ],
+                      _NavItem(
+                        label: AppLocaleKey.notifications.tr(),
+                        activeIcon: AppImages.notificationFillIcon,
+                        inactiveIcon: AppImages.notificationsIcon,
+                        selected: controller.screenIndex == 2,
+                        onTap: () => controller.updateIndex(2),
                       ),
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          IconButton(
-                            onPressed: () {
-                              context.read<DelegateBottomNavBarController>().updateIndex(3);
-                            },
-                            icon: SvgPicture.asset(
-                              delegateBottomNavBarController.screenIndex == 3
-                                  ? AppImages.accountFillIcon
-                                  : AppImages.myAccountIcon,
-                              colorFilter: ColorFilter.mode(
-                                delegateBottomNavBarController.screenIndex == 3
-                                    ? AppColor.mainAppColor(context)
-                                    : AppColor.greyColor(context),
-                                BlendMode.srcIn,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            AppLocaleKey.myAccount.tr(),
-                            style: delegateBottomNavBarController.screenIndex == 3
-                                ? AppTextStyle.text14RM(context)
-                                : AppTextStyle.text14RG(context),
-                          ),
-                        ],
+                      _NavItem(
+                        label: AppLocaleKey.myAccount.tr(),
+                        activeIcon: AppImages.accountFillIcon,
+                        inactiveIcon: AppImages.myAccountIcon,
+                        selected: controller.screenIndex == 3,
+                        onTap: () => controller.updateIndex(3),
                       ),
                     ],
                   ),
                 ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -317,7 +299,7 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
     log('Navigating to From Bottom Nav Bar');
     SoundNotification.instance.stopSound();
     final msg = json.encode(message.data);
-    var body = json.decode(msg);
+    final body = json.decode(msg);
     final data = NotificationFromFirebaseMode.fromJson(body);
     switch (data.notificationType.toString()) {
       case '1':
@@ -331,7 +313,6 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
         NavigatorMethods.pushNamed(AppRouters.navigatorKey.currentContext ?? context, WalletScreen.routeName);
         break;
       case '8':
-        log('message');
         NavigatorMethods.pushNamed(
           AppRouters.navigatorKey.currentContext!,
           ChatScreen.routeName,
@@ -370,5 +351,72 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
           DelegateBottomNavBarScreen.routeName,
         );
     }
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.label,
+    required this.activeIcon,
+    required this.inactiveIcon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final String activeIcon;
+  final String inactiveIcon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 3),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 190),
+                  width: 42,
+                  height: 31,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: selected ? const Color(0xffFFF0E3) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: SvgPicture.asset(
+                    selected ? activeIcon : inactiveIcon,
+                    width: 22,
+                    height: 22,
+                    colorFilter: ColorFilter.mode(
+                      selected ? AppColor.mainAppColor(context) : const Color(0xff9AA0AA),
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selected ? const Color(0xff082A4D) : const Color(0xff8B929D),
+                    fontSize: 11.5,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
