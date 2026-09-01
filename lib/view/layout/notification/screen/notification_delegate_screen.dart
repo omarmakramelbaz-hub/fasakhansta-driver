@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'dart:developer';
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
 
+import '../../../../helpers/locale/app_locale_key.dart';
 import '../../../../helpers/pusher_service/pusher_controller.dart';
-import '../../../../helpers/theme/app_colors.dart';
 import '../../../custom_widgets/api_response_widget/api_response_widget.dart';
 import '../../../global/widget/no_notification_widget.dart';
 import '../controller/notifications_delegate_Controller.dart';
@@ -22,25 +23,28 @@ class NotificationsDelegateScreen extends StatefulWidget {
 
 class _NotificationsDelegateScreenState extends State<NotificationsDelegateScreen> {
   late PusherController _pusherController;
+
   @override
   void initState() {
     super.initState();
     _pusherController = context.read<PusherController>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<NotificationsDelegateController>().initialNotifications();
-      context.read<NotificationsDelegateController>().getNotifications().then((value) => setState(() {}));
+      final controller = context.read<NotificationsDelegateController>();
+      controller.initialNotifications();
+      controller.getNotifications().then((_) {
+        if (mounted) setState(() {});
+      });
     });
     _pusherController.addEventListener('notification.updated', _handleDelegateUpdated);
   }
 
   void _handleDelegateUpdated(PusherEvent event) {
     try {
-      var jsonData = jsonDecode(event.data) as Map<String, dynamic>;
+      final jsonData = jsonDecode(event.data) as Map<String, dynamic>;
       log('Notification updated: $jsonData');
-      if (mounted) {
-        var notification = NotificationsModel.fromJson(jsonData);
-        context.read<NotificationsDelegateController>().addNotificationToTop(notification);
-      }
+      if (!mounted) return;
+      final notification = NotificationsModel.fromJson(jsonData);
+      context.read<NotificationsDelegateController>().addNotificationToTop(notification);
     } catch (e, stackTrace) {
       log('Error handling Pusher event: $e');
       log('Stack trace: $stackTrace');
@@ -48,83 +52,117 @@ class _NotificationsDelegateScreenState extends State<NotificationsDelegateScree
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Consumer<NotificationsDelegateController>(
-        builder: (context, notificationsController, _) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 20),
-            // Text(
-            //   tr(AppLocaleKey.today),
-            //   style: AppTextStyle.text18BS(context),
-            // ),
-            const SizedBox(height: 30),
+  void dispose() {
+    _pusherController.removeEventListener('notification.updated', _handleDelegateUpdated);
+    super.dispose();
+  }
 
-            ApiResponseWidget(
-              apiResponse: notificationsController.notificationsResponse,
-              onReload: () => notificationsController.getNotifications(),
-              isEmpty: notificationsController.notifications.isEmpty,
-              emptyWidget: const NoNotificationWidget(),
-              child: Expanded(
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: AppColor.whiteColor(context),
-                    borderRadius: const BorderRadius.only(topRight: Radius.circular(36), topLeft: Radius.circular(36)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColor.greyColor(context).withOpacity(.2),
-                        blurRadius: 10,
-                        offset: const Offset(0, -3),
+  @override
+  Widget build(BuildContext context) {
+    const navy = Color(0xff082A4D);
+    const softText = Color(0xff7D8490);
+
+    return Scaffold(
+      backgroundColor: const Color(0xffF8F9FB),
+      body: Consumer<NotificationsDelegateController>(
+        builder: (context, controller, _) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xffFF8A08), Color(0xffFF6500)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xffFD7201).withOpacity(.20),
+                            blurRadius: 15,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // const SizedBox(height: 20),
-                        // Text(
-                        //   "اليوم ",
-                        //   style: AppTextStyle.text16MS(context),
-                        // ),
-                        const SizedBox(height: 25),
-                        Expanded(
-                          child: RefreshIndicator(
-                            onRefresh: () async {
-                              await notificationsController.getNotifications();
-                            },
-                            child: ListView.separated(
-                              itemCount: notificationsController.notifications.length,
-                              itemBuilder: (context, index) {
-                                return NotificationDelegateWidget(
-                                  notificationType:
-                                      notificationsController
-                                          .notifications[index]
-                                          .data
-                                          ?.notificationData
-                                          ?.notificationType ??
-                                      0,
-                                  notification: notificationsController.notifications[index],
-                                  orderId:
-                                      notificationsController.notifications[index].data?.notificationData?.orderId ?? 0,
-                                );
-                              },
-                              separatorBuilder: (BuildContext context, int index) =>
-                                  const Padding(padding: EdgeInsets.only(bottom: 25)),
-                            ),
+                      child: const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 25),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            AppLocaleKey.notifications.tr(),
+                            style: const TextStyle(color: navy, fontSize: 25, fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            context.locale.languageCode == 'ar'
+                                ? 'كل جديد عن طلباتك وحسابك'
+                                : 'Updates about your orders and account',
+                            style: const TextStyle(color: softText, fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (controller.notifications.isNotEmpty)
+                      Container(
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        padding: const EdgeInsets.symmetric(horizontal: 9),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: const Color(0xffFFF0E3),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          controller.notifications.length.toString(),
+                          style: const TextStyle(
+                            color: Color(0xffFD7201),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
-                      ],
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                ApiResponseWidget(
+                  apiResponse: controller.notificationsResponse,
+                  onReload: controller.getNotifications,
+                  isEmpty: controller.notifications.isEmpty,
+                  emptyWidget: const NoNotificationWidget(),
+                  child: Expanded(
+                    child: RefreshIndicator(
+                      color: const Color(0xffFD7201),
+                      onRefresh: controller.getNotifications,
+                      child: ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.only(bottom: 110),
+                        itemCount: controller.notifications.length,
+                        itemBuilder: (context, index) {
+                          final notification = controller.notifications[index];
+                          return NotificationDelegateWidget(
+                            notificationType: notification.data?.notificationData?.notificationType ?? 0,
+                            notification: notification,
+                            orderId: notification.data?.notificationData?.orderId ?? 0,
+                          );
+                        },
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
