@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../../../helpers/images/app_images.dart';
+import '../../../../../../helpers/networking/api_helper.dart';
 import '../../../../../../helpers/utils/navigator_methods.dart';
 import '../../../helpers/hive/hive_methods.dart';
 import '../../../helpers/pusher_service/pusher_controller.dart';
@@ -23,12 +24,12 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  bool get _isGitHubPreview => kIsWeb && Uri.base.host.endsWith('github.io');
+  bool _navigated = false;
 
   @override
   void initState() {
-    _initial();
     super.initState();
+    _initial();
   }
 
   @override
@@ -65,50 +66,56 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
-  void _initial() {
-    // Only the GitHub Pages URL is a UI preview. A real server-hosted web build
-    // must use the same token/profile auth flow as the production app.
-    if (_isGitHubPreview) {
-      Future.delayed(const Duration(milliseconds: 450), () {
-        if (!mounted) return;
-        NavigatorMethods.pushNamedAndRemoveUntil(context, LoginScreen.routeName);
-      });
-      return;
-    }
+  void _goLogin() {
+    if (!mounted || _navigated) return;
+    _navigated = true;
+    NavigatorMethods.pushNamedAndRemoveUntil(context, LoginScreen.routeName);
+  }
 
+  void _goHome() {
+    if (!mounted || _navigated) return;
+    _navigated = true;
+    NavigatorMethods.pushNamedAndRemoveUntil(context, DelegateBottomNavBarScreen.routeName);
+  }
+
+  void _initial() {
     if (HiveMethods.getToken() != null) {
       context.read<AuthController>().initialProfile();
       _getData();
     } else {
-      Future.delayed(
-        const Duration(milliseconds: 2650),
-        () => NavigatorMethods.pushNamedAndRemoveUntil(context, LoginScreen.routeName),
-      );
+      Future.delayed(const Duration(milliseconds: 1200), _goLogin);
     }
   }
 
-  void _getData() {
-    context.read<AuthController>().getProfile(
+  Future<void> _getData() async {
+    final authController = context.read<AuthController>();
+
+    await authController.getProfile(
       onHaveId: (id, token) {
         if (!kIsWeb) {
-          context.read<PusherController>().initPusher(channelName: 'private-user.$id', userId: id, token: token);
+          context.read<PusherController>().initPusher(
+                channelName: 'private-user.$id',
+                userId: id,
+                token: token,
+              );
         }
       },
       onSuccess: () {
-        Future.delayed(const Duration(milliseconds: 2650), () {
-          if (!mounted) return;
-          NavigatorMethods.pushNamedAndRemoveUntil(context, DelegateBottomNavBarScreen.routeName);
-        });
+        Future.delayed(const Duration(milliseconds: 900), _goHome);
       },
       onUnauthenticated: () {
-        Future.delayed(const Duration(milliseconds: 2650), () {
-          if (!mounted) return;
-          NavigatorMethods.pushNamedAndRemoveUntil(
-            context,
-            LoginScreen.routeName,
-          );
-        });
+        HiveMethods.deleteToken();
+        Future.delayed(const Duration(milliseconds: 500), _goLogin);
       },
     );
+
+    // A stale token plus a network/CORS/server error used to leave the app
+    // permanently on the splash screen because only success/401 navigated.
+    // Any non-success terminal state should fall back to login instead.
+    final state = authController.profileResponse.state;
+    if (state != ResponseState.complete && state != ResponseState.loading) {
+      HiveMethods.deleteToken();
+      Future.delayed(const Duration(milliseconds: 500), _goLogin);
+    }
   }
 }
