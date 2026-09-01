@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../helpers/locale/app_locale_key.dart';
-import '../../../../helpers/theme/app_colors.dart';
-import '../../../../helpers/theme/app_text_style.dart';
 import '../../../custom_widgets/api_response_widget/api_response_widget.dart';
 import '../../../custom_widgets/buttons/custom_button.dart';
 import '../../../custom_widgets/custom_app_bar/custom_app_bar.dart';
@@ -26,8 +24,9 @@ class _ContactUsScreenState extends State<ContactUsScreen> with ValidationMixin 
   final _nameEc = TextEditingController();
   final _emailEc = TextEditingController();
   final _messages = TextEditingController();
+
   @override
-  dispose() {
+  void dispose() {
     _nameEc.dispose();
     _emailEc.dispose();
     _messages.dispose();
@@ -36,127 +35,180 @@ class _ContactUsScreenState extends State<ContactUsScreen> with ValidationMixin 
 
   @override
   Widget build(BuildContext context) {
+    const navy = Color(0xff082A4D);
+    const softText = Color(0xff7D8490);
+
     return ChangeNotifierProvider(
-      create: (BuildContext context) {
-        return MyAccountController()
-          ..initialSetting()
-          ..getSetting();
-      },
+      create: (_) => MyAccountController()
+        ..initialSetting()
+        ..getSetting(),
       child: Consumer<MyAccountController>(
-        builder: (context, myAccountController, _) => Form(
-          key: _formKey,
-          child: Scaffold(
-            appBar: CustomAppBar(
-              leading: IconButton(
-                icon: Icon(Icons.arrow_back_ios, color: AppColor.blackColor(context)),
-                onPressed: () {
-                  Navigator.pop(context);
-                },
+        builder: (context, controller, _) {
+          return Form(
+            key: _formKey,
+            child: Scaffold(
+              backgroundColor: const Color(0xffF8F9FB),
+              appBar: CustomAppBar(
+                context,
+                height: 86,
+                title: Text(
+                  AppLocaleKey.connectWithUs.tr(),
+                  style: const TextStyle(color: navy, fontSize: 21, fontWeight: FontWeight.w900),
+                ),
               ),
-              appBarColor: AppColor.whiteColor(context),
-              context,
-              height: 80,
-              centerTitle: false,
-              leadingPadding: 40,
-              title: Padding(
-                padding: const EdgeInsets.only(bottom: 40),
-                child: Text(AppLocaleKey.connectWithUs.tr(), style: AppTextStyle.text20BS(context)),
-              ),
-            ),
-            body: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 40),
-                  ApiResponseWidget(
-                    apiResponse: myAccountController.settingResponse,
-                    onReload: myAccountController.getSetting,
-                    isEmpty: myAccountController.setting == null,
-                    child: Container(
-                      width: MediaQuery.of(context).size.width,
-                      decoration: BoxDecoration(
-                        color: AppColor.whiteColor(context),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(34),
-                          topRight: Radius.circular(34),
+              body: ApiResponseWidget(
+                apiResponse: controller.settingResponse,
+                onReload: controller.getSetting,
+                isEmpty: controller.setting == null,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 32),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(17),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xff082A4D), Color(0xff143F69)],
+                          ),
+                          borderRadius: BorderRadius.circular(25),
+                          boxShadow: [
+                            BoxShadow(
+                              color: navy.withOpacity(.18),
+                              blurRadius: 24,
+                              offset: const Offset(0, 11),
+                            ),
+                          ],
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColor.greyColor(context).withOpacity(0.2),
-                            offset: const Offset(0, -3),
-                            blurRadius: 10,
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                            child: Text(
-                              myAccountController.setting?.contactText ?? '',
-                              textAlign: TextAlign.justify,
-                              style: AppTextStyle.text16RS(context),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(colors: [Color(0xffFF8A08), Color(0xffFF6500)]),
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              child: const Icon(Icons.support_agent_rounded, color: Colors.white, size: 25),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          MobileAndEmailContactUsWidget(
-                            mobile: myAccountController.setting?.mobile ?? '',
-                            email: myAccountController.setting?.email ?? '',
-                          ),
-                          const SizedBox(height: 30),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Column(
-                              children: [
-                                CustomFormField(
-                                  controller: _nameEc,
-                                  validator: validateEmptyField,
-                                  title: AppLocaleKey.name.tr(),
-                                ),
-                                const SizedBox(height: 24),
-                                CustomFormField(
-                                  controller: _emailEc,
-                                  validator: validateEmptyField,
-                                  title: AppLocaleKey.email.tr(),
-                                ),
-                                const SizedBox(height: 24),
-                                CustomFormField(
-                                  contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 30),
-                                  controller: _messages,
-                                  validator: validateEmptyField,
-                                  maxLines: 5,
-                                  title: AppLocaleKey.theMessage.tr(),
-                                ),
-                                const SizedBox(height: 24),
-                                CustomButton(
-                                  onPressed: () {
-                                    if (_formKey.currentState!.validate()) {
-                                      context.read<MyAccountController>().storeContact(
-                                        name: _nameEc.text,
-                                        email: _emailEc.text,
-                                        message: _messages.text,
-                                        onSuccess: () {
-                                          Navigator.pop(context);
-                                        },
-                                      );
-                                    }
-                                  },
-                                  text: AppLocaleKey.send.tr(),
-                                ),
-                                const SizedBox(height: 24),
-                              ],
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    AppLocaleKey.connectWithUs.tr(),
+                                    style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    controller.setting?.contactText ?? '',
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(.76),
+                                      fontSize: 12.5,
+                                      height: 1.55,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(23),
+                          border: Border.all(color: const Color(0xffECEEF1)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: navy.withOpacity(.055),
+                              blurRadius: 18,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: MobileAndEmailContactUsWidget(
+                          mobile: controller.setting?.mobile ?? '',
+                          email: controller.setting?.email ?? '',
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      Text(
+                        context.locale.languageCode == 'ar' ? 'أرسل لنا رسالة' : 'Send us a message',
+                        style: const TextStyle(color: navy, fontSize: 19, fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        context.locale.languageCode == 'ar'
+                            ? 'اكتب بياناتك وسنقوم بالرد عليك في أقرب وقت'
+                            : 'Leave your details and we will get back to you soon',
+                        style: const TextStyle(color: softText, fontSize: 13, height: 1.4, fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: const Color(0xffECEEF1)),
+                        ),
+                        child: Column(
+                          children: [
+                            CustomFormField(
+                              controller: _nameEc,
+                              validator: validateEmptyField,
+                              title: AppLocaleKey.name.tr(),
+                              prefixIcon: const Icon(Icons.person_outline_rounded, color: Color(0xffAEB3BA), size: 21),
+                            ),
+                            const SizedBox(height: 18),
+                            CustomFormField(
+                              controller: _emailEc,
+                              validator: validateEmail,
+                              keyboardType: TextInputType.emailAddress,
+                              title: AppLocaleKey.email.tr(),
+                              prefixIcon: const Icon(Icons.email_outlined, color: Color(0xffAEB3BA), size: 21),
+                            ),
+                            const SizedBox(height: 18),
+                            CustomFormField(
+                              contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 15),
+                              controller: _messages,
+                              validator: validateEmptyField,
+                              maxLines: 5,
+                              title: AppLocaleKey.theMessage.tr(),
+                            ),
+                            const SizedBox(height: 20),
+                            CustomButton(
+                              prefixIcon: const Icon(Icons.send_rounded, color: Colors.white, size: 21),
+                              text: AppLocaleKey.send.tr(),
+                              onPressed: () {
+                                if (!_formKey.currentState!.validate()) return;
+                                controller.storeContact(
+                                  name: _nameEc.text,
+                                  email: _emailEc.text,
+                                  message: _messages.text,
+                                  onSuccess: () => Navigator.pop(context),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
