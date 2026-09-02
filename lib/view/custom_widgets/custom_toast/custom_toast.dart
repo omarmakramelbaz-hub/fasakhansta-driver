@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../helpers/images/app_images.dart';
-import '../../../helpers/utils/general_const.dart';
 
 enum ToastType { success, error, offline, warning, help }
 
@@ -11,6 +10,9 @@ class CustomToast extends StatelessWidget {
   final String? title;
   final String? icon;
   final String message;
+
+  /// Kept for backwards compatibility with existing callers.
+  /// Go Drive notifications now deliberately use one unified brand palette.
   final Color? backgroundColor;
   final Color? textColor;
 
@@ -24,51 +26,115 @@ class CustomToast extends StatelessWidget {
     this.icon,
   });
 
+  static const _orange = Color(0xffFD7201);
+  static const _navy = Color(0xff082A4D);
+  static const _softText = Color(0xff667384);
+
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final cardWidth = (screenWidth * .92).clamp(280.0, 520.0).toDouble();
+
     return Container(
-      width: double.infinity,
-      height: 100,
-      padding: const EdgeInsets.all(10),
-      margin: const EdgeInsets.all(10),
+      width: cardWidth,
+      constraints: const BoxConstraints(minHeight: 68),
+      margin: const EdgeInsets.fromLTRB(14, 10, 14, 2),
+      padding: const EdgeInsets.fromLTRB(12, 11, 14, 11),
       decoration: BoxDecoration(
-        color: backgroundColor ?? _backgroundColor(),
-        borderRadius: BorderRadius.circular(genRadius),
+        gradient: const LinearGradient(
+          begin: AlignmentDirectional.topStart,
+          end: AlignmentDirectional.bottomEnd,
+          colors: [
+            Color(0xFAFFFBF7),
+            Color(0xF7FFF0E2),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0x66FD7201),
+          width: 1.1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _orange.withOpacity(.16),
+            blurRadius: 24,
+            offset: const Offset(0, 9),
+          ),
+          BoxShadow(
+            color: _navy.withOpacity(.055),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Center(
-            child: CircleAvatar(
-              radius: 37.5,
-              backgroundColor: Colors.white60,
-              child: SvgPicture.asset(
-                icon ?? _icons(),
-                height: 50,
-                width: 50,
-                colorFilter: ColorFilter.mode(backgroundColor ?? _backgroundColor(), BlendMode.srcIn),
+          Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: _orange.withOpacity(.105),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _orange.withOpacity(.13)),
+            ),
+            child: SvgPicture.asset(
+              icon ?? _icons(),
+              width: 22,
+              height: 22,
+              colorFilter: const ColorFilter.mode(
+                _orange,
+                BlendMode.srcIn,
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (title != null) ...{
+                if (title != null && title!.trim().isNotEmpty) ...[
                   Text(
                     title!,
-                    style: TextStyle(color: textColor ?? Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
                     maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _navy,
+                      fontSize: 14.5,
+                      height: 1.2,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                },
+                  const SizedBox(height: 4),
+                ],
                 Text(
                   message,
-                  style: TextStyle(color: textColor ?? Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
-                  maxLines: 2,
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.justify,
+                  style: TextStyle(
+                    color: title == null ? _navy : _softText,
+                    fontSize: 13.5,
+                    height: 1.38,
+                    fontWeight: title == null ? FontWeight.w700 : FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: _orange.withOpacity(.85),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: _orange.withOpacity(.30),
+                  blurRadius: 8,
+                  spreadRadius: 1,
                 ),
               ],
             ),
@@ -76,21 +142,6 @@ class CustomToast extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Color _backgroundColor() {
-    switch (type) {
-      case ToastType.success:
-        return const Color(0xff1FC170);
-      case ToastType.error:
-        return const Color(0xffff3333);
-      case ToastType.offline:
-        return const Color(0xFF616161);
-      case ToastType.warning:
-        return const Color(0xffFFCC00);
-      case ToastType.help:
-        return const Color(0xff0091EA);
-    }
   }
 
   String _icons() {
