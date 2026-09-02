@@ -135,16 +135,13 @@ class CommonMethods {
   }) {
     BotToast.showCustomText(
       duration: Duration(seconds: seconds),
-      toastBuilder: (cancelFunc) => SizedBox(
-        height: 85,
-        child: CustomToast(
-          type: type,
-          title: title,
-          message: message,
-          backgroundColor: backgroundColor,
-          icon: icon,
-          textColor: textColor,
-        ),
+      toastBuilder: (cancelFunc) => CustomToast(
+        type: type,
+        title: title,
+        message: message,
+        backgroundColor: backgroundColor,
+        icon: icon,
+        textColor: textColor,
       ),
     );
   }
@@ -160,16 +157,13 @@ class CommonMethods {
   }) {
     BotToast.showCustomText(
       duration: Duration(seconds: seconds),
-      toastBuilder: (context) => SizedBox(
-        height: 85,
-        child: CustomToast(
-          title: title,
-          message: message,
-          type: apiResponse?.state == ResponseState.offline ? ToastType.offline : ToastType.error,
-          backgroundColor: backgroundColor,
-          icon: icon,
-          textColor: textColor,
-        ),
+      toastBuilder: (context) => CustomToast(
+        title: title,
+        message: message,
+        type: apiResponse?.state == ResponseState.offline ? ToastType.offline : ToastType.error,
+        backgroundColor: backgroundColor,
+        icon: icon,
+        textColor: textColor,
       ),
     );
   }
