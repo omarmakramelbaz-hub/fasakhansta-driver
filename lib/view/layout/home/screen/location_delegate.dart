@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:developer';
+import 'dart:typed_data';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
@@ -7,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../helpers/hive/hive_methods.dart';
@@ -17,11 +18,9 @@ import '../../../../helpers/utils/navigator_methods.dart';
 import '../../../custom_widgets/buttons/custom_button.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../../delegate_bottom_nav_bar.dart/screen/delegate_bottom_nav_bar_screen.dart';
-import '../widget/delegate_motorcycle_marker.dart';
 
 class DelegateLocationScreen extends StatefulWidget {
   static const String routeName = 'DelegateLocationScreen';
-
   const DelegateLocationScreen({super.key});
 
   @override
@@ -32,82 +31,142 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
   static const _navy = Color(0xff082A4D);
   static const _orange = Color(0xffFD7201);
   static const _softText = Color(0xff7D8490);
+  static const _styleUrl = 'https://tiles.openfreemap.org/styles/liberty';
+  static const _bikeAsset = 'assets/images/go_motorcycle_marker.png';
+  static const _bikeImageId = 'go-motorcycle';
 
-  List<Placemark>? placemarks;
-  double? currentLat;
-  double? currentLng;
-  double? _gpsAccuracy;
-  double _currentHeading = 0;
-  GoogleMapController? gmc;
-  Set<Marker> markers = {};
+  final List<Placemark> _placemarks = [];
+  MapLibreMapController? _mapController;
+  Symbol? _bike;
+  Circle? _pulse;
   StreamSubscription<Position>? _positionSubscription;
 
-  BitmapDescriptor _delegateMarkerIcon =
-      BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
-  String? _modernMapStyle;
-
-  String? _resolvedAddress;
+  double? _lat;
+  double? _lng;
+  double? _accuracy;
+  double _heading = 0;
+  double _speedKmh = 0;
+  String? _address;
   String? _locationError;
   bool _isLocating = true;
-  bool _isLiveTracking = false;
+  bool _isLive = false;
+  bool _styleReady = false;
+  bool _showBikeCard = false;
   bool _isResolvingAddress = false;
-  DateTime? _lastAddressResolveAt;
+  DateTime? _lastAddressAt;
   double? _lastAddressLat;
   double? _lastAddressLng;
 
   bool get _isArabic => context.locale.languageCode == 'ar';
-  bool get _hasLocation => currentLat != null && currentLng != null;
+  bool get _hasLocation => _lat != null && _lng != null;
 
   @override
   void initState() {
     super.initState();
-    _prepareMapVisuals();
     _determinePosition();
   }
 
   @override
   void dispose() {
     _positionSubscription?.cancel();
-    gmc?.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 
-  Future<void> _prepareMapVisuals() async {
+  Future<void> _onMapCreated(MapLibreMapController controller) async {
+    _mapController = controller;
+    controller.onSymbolTapped.add((symbol) {
+      if (symbol.id == _bike?.id && mounted) {
+        setState(() => _showBikeCard = !_showBikeCard);
+      }
+    });
+  }
+
+  Future<void> _onStyleLoaded() async {
+    final controller = _mapController;
+    if (controller == null) return;
     try {
-      final marker = DelegateMotorcycleMarker.create();
-      final mapStyle = await rootBundle.loadString(
-        'assets/map_styles/modern_light_map_style.json',
-      );
-      if (!mounted) return;
-      setState(() {
-        _delegateMarkerIcon = marker;
-        _modernMapStyle = mapStyle;
-      });
-      await gmc?.setMapStyle(mapStyle);
-      _refreshMarker();
+      final data = await rootBundle.load(_bikeAsset);
+      final bytes = Uint8List.sublistView(data);
+      await controller.addImage(_bikeImageId, bytes);
+      _styleReady = true;
+      await _syncBike();
+      await _followBike(initial: true);
     } catch (e) {
-      log('Preparing modern map visuals failed: $e');
+      log('MapLibre style setup failed: $e');
+      if (mounted) {
+        setState(() {
+          _locationError = _isArabic
+              ? 'تعذر تحميل علامة الموتوسيكل على الخريطة.'
+              : 'Could not load the motorcycle marker.';
+        });
+      }
     }
   }
 
-  void _refreshMarker() {
-    if (!_hasLocation || !mounted) return;
-    setState(() {
-      markers = {
-        Marker(
-          markerId: const MarkerId('delegateLiveLocation'),
-          position: LatLng(currentLat!, currentLng!),
-          icon: _delegateMarkerIcon,
-          rotation: _currentHeading,
-          flat: true,
-          anchor: const Offset(.5, .72),
-          zIndex: 10,
-          infoWindow: InfoWindow(
-            title: _isArabic ? 'موقع المندوب الحالي' : 'Current delegate location',
+  Future<void> _syncBike() async {
+    final controller = _mapController;
+    if (!_styleReady || controller == null || !_hasLocation) return;
+
+    final point = LatLng(_lat!, _lng!);
+    try {
+      if (_pulse == null) {
+        _pulse = await controller.addCircle(
+          CircleOptions(
+            geometry: point,
+            circleRadius: 24,
+            circleColor: '#FD7201',
+            circleOpacity: .14,
+            circleStrokeColor: '#FF9B46',
+            circleStrokeWidth: 2,
+            circleStrokeOpacity: .35,
+          ),
+        );
+      } else {
+        await controller.updateCircle(_pulse!, CircleOptions(geometry: point));
+      }
+
+      if (_bike == null) {
+        _bike = await controller.addSymbol(
+          SymbolOptions(
+            geometry: point,
+            iconImage: _bikeImageId,
+            iconSize: .62,
+            iconRotate: _heading,
+            iconAnchor: 'center',
+            zIndex: 20,
+          ),
+          {'type': 'delegate', 'live': true},
+        );
+      } else {
+        await controller.updateSymbol(
+          _bike!,
+          SymbolOptions(geometry: point, iconRotate: _heading),
+        );
+      }
+    } catch (e) {
+      log('MapLibre annotation update failed: $e');
+    }
+  }
+
+  Future<void> _followBike({bool initial = false}) async {
+    final controller = _mapController;
+    if (!_styleReady || controller == null || !_hasLocation) return;
+    try {
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(_lat!, _lng!),
+            zoom: initial ? 17.3 : 17.0,
+            tilt: 46,
+            bearing: _heading,
           ),
         ),
-      };
-    });
+        duration: const Duration(milliseconds: 650),
+      );
+    } catch (e) {
+      log('MapLibre camera follow failed: $e');
+    }
   }
 
   Future<void> _determinePosition() async {
@@ -117,24 +176,20 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
     if (mounted) {
       setState(() {
         _isLocating = true;
-        _isLiveTracking = false;
+        _isLive = false;
         _locationError = null;
       });
     }
 
     try {
-      if (!kIsWeb) {
-        final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-        if (!serviceEnabled) {
-          throw Exception('Location services are disabled');
-        }
+      if (!kIsWeb && !await Geolocator.isLocationServiceEnabled()) {
+        throw Exception('Location services are disabled');
       }
 
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         throw Exception('Location permission is denied');
@@ -143,16 +198,10 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
       final position = await Geolocator.getCurrentPosition().timeout(
         const Duration(seconds: 15),
       );
-
-      await _handleLivePosition(
-        position,
-        forceCamera: true,
-        forceAddress: true,
-      );
+      await _handlePosition(position, forceCamera: true, forceAddress: true);
       _startLiveTracking();
     } catch (e) {
       log('Failed to start live location: $e');
-
       final savedLat = HiveMethods.getLat();
       final savedLng = HiveMethods.getLan();
 
@@ -161,17 +210,16 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
         if (mounted) {
           setState(() {
             _locationError = _isArabic
-                ? 'تعذر تشغيل التتبع المباشر. تم عرض آخر موقع محفوظ، اضغط زر الموقع للمحاولة مرة أخرى.'
-                : 'Live tracking could not start. Your last saved location is shown; tap the location button to retry.';
+                ? 'تعذر تشغيل التتبع المباشر. يتم عرض آخر موقع محفوظ.'
+                : 'Live tracking could not start. Showing the last saved location.';
           });
         }
       } else if (mounted) {
         setState(() {
           _isLocating = false;
-          _isLiveTracking = false;
           _locationError = _isArabic
-              ? 'تعذر تحديد موقعك. فعّل إذن الموقع ثم اضغط زر الموقع للمحاولة مرة أخرى.'
-              : 'Could not detect your location. Enable location permission and tap the location button to retry.';
+              ? 'تعذر تحديد موقعك. فعّل إذن الموقع ثم حاول مرة أخرى.'
+              : 'Could not detect your location. Enable location permission and retry.';
         });
       }
     }
@@ -179,137 +227,84 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
 
   void _startLiveTracking() {
     _positionSubscription?.cancel();
-
-    const locationSettings = LocationSettings(
+    const settings = LocationSettings(
       accuracy: LocationAccuracy.high,
       distanceFilter: 5,
     );
 
-    _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: locationSettings,
-    ).listen(
-      (position) {
-        _handleLivePosition(position);
-      },
+    _positionSubscription =
+        Geolocator.getPositionStream(locationSettings: settings).listen(
+      (position) => _handlePosition(position),
       onError: (Object error) {
         log('Live location stream error: $error');
         if (!mounted) return;
         setState(() {
-          _isLiveTracking = false;
+          _isLive = false;
           _isLocating = false;
           _locationError = _isArabic
               ? 'توقف التتبع المباشر مؤقتاً. اضغط زر الموقع لإعادة تشغيله.'
-              : 'Live tracking stopped temporarily. Tap the location button to restart it.';
+              : 'Live tracking paused. Tap the location button to restart it.';
         });
       },
     );
 
     if (mounted) {
       setState(() {
-        _isLiveTracking = true;
+        _isLive = true;
         _isLocating = false;
-        _locationError = null;
       });
     }
   }
 
-  Future<void> _handleLivePosition(
+  Future<void> _handlePosition(
     Position position, {
     bool forceCamera = false,
     bool forceAddress = false,
   }) async {
     if (!mounted) return;
 
-    final lat = position.latitude;
-    final lng = position.longitude;
     final heading = position.heading.isFinite && position.heading >= 0
         ? position.heading
-        : _currentHeading;
+        : _heading;
+    final speed = position.speed.isFinite && position.speed > 0
+        ? position.speed * 3.6
+        : 0.0;
 
     setState(() {
-      currentLat = lat;
-      currentLng = lng;
-      _currentHeading = heading;
-      _gpsAccuracy = position.accuracy;
+      _lat = position.latitude;
+      _lng = position.longitude;
+      _heading = heading;
+      _speedKmh = speed;
+      _accuracy = position.accuracy;
       _isLocating = false;
-      _isLiveTracking = true;
+      _isLive = true;
       _locationError = null;
-      markers = {
-        Marker(
-          markerId: const MarkerId('delegateLiveLocation'),
-          position: LatLng(lat, lng),
-          icon: _delegateMarkerIcon,
-          rotation: heading,
-          flat: true,
-          anchor: const Offset(.5, .72),
-          zIndex: 10,
-          infoWindow: InfoWindow(
-            title: _isArabic ? 'موقع المندوب الحالي' : 'Current delegate location',
-          ),
-        ),
-      };
     });
 
-    HiveMethods.updateLat(lat);
-    HiveMethods.updateLan(lng);
+    HiveMethods.updateLat(position.latitude);
+    HiveMethods.updateLan(position.longitude);
 
-    try {
-      if (gmc != null) {
-        await gmc!.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: LatLng(lat, lng),
-              zoom: forceCamera ? 17.2 : 16.8,
-              tilt: 38,
-              bearing: heading,
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      log('Map camera follow failed: $e');
-    }
-
-    await _resolveAddressIfNeeded(lat, lng, force: forceAddress);
+    await _syncBike();
+    await _followBike(initial: forceCamera);
+    await _resolveAddressIfNeeded(
+      position.latitude,
+      position.longitude,
+      force: forceAddress,
+    );
   }
 
   Future<void> _applyFallbackLocation(double lat, double lng) async {
     if (!mounted) return;
-
     setState(() {
-      currentLat = lat;
-      currentLng = lng;
-      _gpsAccuracy = null;
+      _lat = lat;
+      _lng = lng;
+      _accuracy = null;
+      _speedKmh = 0;
       _isLocating = false;
-      _isLiveTracking = false;
-      markers = {
-        Marker(
-          markerId: const MarkerId('savedLocation'),
-          position: LatLng(lat, lng),
-          icon: _delegateMarkerIcon,
-          anchor: const Offset(.5, .72),
-          zIndex: 10,
-          infoWindow: InfoWindow(
-            title: _isArabic ? 'آخر موقع محفوظ' : 'Last saved location',
-          ),
-        ),
-      };
+      _isLive = false;
     });
-
-    try {
-      await gmc?.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: LatLng(lat, lng),
-            zoom: 16.8,
-            tilt: 32,
-          ),
-        ),
-      );
-    } catch (e) {
-      log('Fallback map camera failed: $e');
-    }
-
+    await _syncBike();
+    await _followBike(initial: true);
     await _resolveAddressIfNeeded(lat, lng, force: true);
   }
 
@@ -321,9 +316,9 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
     if (_isResolvingAddress) return;
 
     final now = DateTime.now();
-    final elapsed = _lastAddressResolveAt == null
+    final elapsed = _lastAddressAt == null
         ? const Duration(days: 1)
-        : now.difference(_lastAddressResolveAt!);
+        : now.difference(_lastAddressAt!);
     final moved = _lastAddressLat == null || _lastAddressLng == null
         ? double.infinity
         : Geolocator.distanceBetween(
@@ -333,26 +328,24 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
             lng,
           );
 
-    if (!force && elapsed < const Duration(seconds: 15) && moved < 35) {
-      return;
-    }
+    if (!force && elapsed < const Duration(seconds: 15) && moved < 35) return;
 
-    _lastAddressResolveAt = now;
+    _lastAddressAt = now;
     _lastAddressLat = lat;
     _lastAddressLng = lng;
     await _resolveAddress(lat, lng);
   }
 
   Future<void> _resolveAddress(double lat, double lng) async {
-    final coordinateText = '${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}';
+    final coordinates = '${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}';
 
     if (kIsWeb) {
       if (!mounted) return;
       setState(() {
-        placemarks = null;
-        _resolvedAddress = _isLiveTracking
+        _placemarks.clear();
+        _address = _isLive
             ? (_isArabic ? 'موقع المندوب الحالي' : 'Current delegate location')
-            : (_isArabic ? 'آخر موقع محفوظ' : 'Last saved location');
+            : coordinates;
       });
       return;
     }
@@ -361,33 +354,28 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
     try {
       final result = await placemarkFromCoordinates(lat, lng);
       if (!mounted) return;
-
       final first = result.isNotEmpty ? result.first : null;
       final parts = <String>[
-        first?.locality ?? '',
-        first?.subLocality ?? '',
         first?.street ?? '',
-      ].where((part) => part.trim().isNotEmpty).toList();
+        first?.subLocality ?? '',
+        first?.locality ?? '',
+      ].where((e) => e.trim().isNotEmpty).toList();
 
       setState(() {
-        placemarks = result;
-        _resolvedAddress = parts.isEmpty ? coordinateText : parts.join(', ');
+        _placemarks
+          ..clear()
+          ..addAll(result);
+        _address = parts.isEmpty ? coordinates : parts.join('، ');
       });
     } catch (e) {
       log('Reverse geocoding failed: $e');
-      if (!mounted) return;
-      setState(() {
-        placemarks = null;
-        _resolvedAddress = _isLiveTracking
-            ? (_isArabic ? 'موقع المندوب الحالي' : 'Current delegate location')
-            : coordinateText;
-      });
+      if (mounted) setState(() => _address = coordinates);
     } finally {
       _isResolvingAddress = false;
     }
   }
 
-  void _onConfirmLocation(BuildContext context) {
+  void _confirm(BuildContext context) {
     if (!_hasLocation) {
       CommonMethods.showError(
         message: _isArabic
@@ -397,25 +385,22 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
       return;
     }
 
-    final authController = context.read<AuthController>();
-    authController.updateDelegateLocation(
-      lat: currentLat!,
-      lng: currentLng!,
+    context.read<AuthController>().updateDelegateLocation(
+      lat: _lat!,
+      lng: _lng!,
       onSuccess: () {
-        HiveMethods.updateLan(currentLng!);
-        HiveMethods.updateLat(currentLat!);
+        HiveMethods.updateLan(_lng!);
+        HiveMethods.updateLat(_lat!);
         context.read<AuthController>().getProfile();
 
-        final placemark =
-            placemarks != null && placemarks!.isNotEmpty ? placemarks!.first : null;
-        final resolvedArea = placemark?.locality ??
-            placemark?.subLocality ??
-            placemark?.administrativeArea ??
-            _resolvedAddress ??
-            '${currentLat!.toStringAsFixed(6)}, ${currentLng!.toStringAsFixed(6)}';
+        final p = _placemarks.isNotEmpty ? _placemarks.first : null;
+        final area = p?.locality ??
+            p?.subLocality ??
+            p?.administrativeArea ??
+            _address ??
+            '${_lat!.toStringAsFixed(6)}, ${_lng!.toStringAsFixed(6)}';
+        HiveMethods.delegateAddress(area);
 
-        HiveMethods.delegateAddress(resolvedArea);
-        log('Location confirmed: $resolvedArea ($currentLat, $currentLng)');
         NavigatorMethods.pushNamedAndRemoveUntil(
           context,
           DelegateBottomNavBarScreen.routeName,
@@ -424,81 +409,53 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
     );
   }
 
-  String get _coordinatesText {
-    if (!_hasLocation) return '--';
-    return '${currentLat!.toStringAsFixed(6)}, ${currentLng!.toStringAsFixed(6)}';
-  }
-
-  String get _locationTitle {
-    if (_isLocating) {
-      return _isArabic ? 'جارٍ تحديد موقعك...' : 'Detecting your location...';
-    }
-    if (_resolvedAddress != null) return _resolvedAddress!;
-    return _isArabic ? 'في انتظار إشارة GPS' : 'Waiting for GPS signal';
-  }
+  String get _coordinates =>
+      _hasLocation ? '${_lat!.toStringAsFixed(6)}, ${_lng!.toStringAsFixed(6)}' : '--';
 
   String get _accuracyText {
-    if (!_isLiveTracking || _gpsAccuracy == null) {
-      return _isArabic ? 'الموقع المحفوظ' : 'Saved location';
+    if (!_isLive || _accuracy == null) {
+      return _isArabic ? 'آخر موقع محفوظ' : 'Saved location';
     }
-    final meters = _gpsAccuracy!.round().clamp(1, 9999);
-    return _isArabic ? 'دقة GPS ±$meters م' : 'GPS accuracy ±${meters}m';
+    return _isArabic
+        ? 'دقة GPS ±${_accuracy!.round()} م'
+        : 'GPS ±${_accuracy!.round()}m';
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.sizeOf(context).height;
-    final mapHeight = (screenHeight * .48).clamp(350.0, 520.0).toDouble();
+    final mapHeight =
+        (MediaQuery.sizeOf(context).height * .50).clamp(380.0, 540.0).toDouble();
 
     return Scaffold(
       backgroundColor: const Color(0xffF7F8FA),
-      body: Stack(
-        children: [
-          const Positioned.fill(
-            child: IgnorePointer(
-              child: CustomPaint(painter: _LocationBackgroundPainter()),
-            ),
-          ),
-          SafeArea(
-            bottom: false,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(18, 10, 18, 130),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 620),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildHeader(context),
-                      const SizedBox(height: 20),
-                      _buildIntroCard(),
-                      const SizedBox(height: 16),
-                      _buildMapCard(mapHeight),
-                      const SizedBox(height: 16),
-                      _buildSelectedLocationCard(),
-                      if (_locationError != null) ...[
-                        const SizedBox(height: 12),
-                        _buildWarningCard(),
-                      ],
-                    ],
-                  ),
-                ),
+      body: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 130),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 620),
+              child: Column(
+                children: [
+                  _header(),
+                  const SizedBox(height: 18),
+                  _liveCard(),
+                  const SizedBox(height: 16),
+                  _mapCard(mapHeight),
+                  const SizedBox(height: 16),
+                  _locationCard(),
+                  if (_locationError != null) ...[
+                    const SizedBox(height: 12),
+                    _warningCard(),
+                  ],
+                ],
               ),
             ),
           ),
-        ],
+        ),
       ),
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.98),
-          boxShadow: [
-            BoxShadow(
-              color: _navy.withOpacity(.08),
-              blurRadius: 24,
-              offset: const Offset(0, -8),
-            ),
-          ],
-        ),
+        color: Colors.white,
         child: SafeArea(
           minimum: const EdgeInsets.fromLTRB(18, 10, 18, 12),
           child: CustomButton(
@@ -507,69 +464,34 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
             hasShadow: true,
             text: AppLocaleKey.confirm.tr(),
             gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
               colors: [Color(0xffFF8A08), Color(0xffFF6500)],
             ),
             prefixIcon: const Icon(
               Icons.check_circle_outline_rounded,
               color: Colors.white,
-              size: 23,
             ),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 19,
               fontWeight: FontWeight.w800,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: _orange.withOpacity(.28),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
-            onPressed: _hasLocation ? () => _onConfirmLocation(context) : null,
+            onPressed: _hasLocation ? () => _confirm(context) : null,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 13, 18, 13),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: AlignmentDirectional.topStart,
-          end: AlignmentDirectional.bottomEnd,
-          colors: [Color(0xffFFF5EB), Colors.white],
-        ),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: const Color(0xffF2ECE7)),
-        boxShadow: [
-          BoxShadow(
-            color: _navy.withOpacity(.06),
-            blurRadius: 22,
-            offset: const Offset(0, 9),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            child: InkWell(
+  Widget _header() => _card(
+        child: Row(
+          children: [
+            InkWell(
               onTap: () => Navigator.maybePop(context),
               borderRadius: BorderRadius.circular(16),
               child: Container(
                 width: 48,
                 height: 48,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xffECEEF1)),
-                ),
+                decoration: _iconBox(),
                 child: const Icon(
                   Icons.arrow_back_rounded,
                   color: _orange,
@@ -577,259 +499,172 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppLocaleKey.location.tr(),
-                  style: const TextStyle(
-                    color: _navy,
-                    fontSize: 24,
-                    height: 1.15,
-                    fontWeight: FontWeight.w900,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppLocaleKey.location.tr(),
+                    style: const TextStyle(
+                      color: _navy,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _isArabic
-                      ? 'يتم تحديث وعرض موقع المندوب تلقائياً أثناء الحركة'
-                      : 'Your delegate location updates automatically while moving',
-                  style: const TextStyle(
-                    color: _softText,
-                    fontSize: 12.5,
-                    height: 1.35,
-                    fontWeight: FontWeight.w500,
+                  const SizedBox(height: 4),
+                  Text(
+                    _isArabic
+                        ? 'MapLibre + OpenFreeMap • خريطة حديثة بدون Google'
+                        : 'MapLibre + OpenFreeMap • modern open map',
+                    style: const TextStyle(
+                      color: _softText,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIntroCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xffECEEF1)),
-        boxShadow: [
-          BoxShadow(
-            color: _navy.withOpacity(.055),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xffFF9A17), Color(0xffFF6500)],
+                ],
               ),
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: _orange.withOpacity(.22),
-                  blurRadius: 16,
-                  offset: const Offset(0, 7),
-                ),
-              ],
             ),
-            child: const Icon(
-              Icons.two_wheeler_rounded,
-              color: Colors.white,
-              size: 29,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _isArabic ? 'موقعك الحالي مباشر' : 'Your live location',
-                  style: const TextStyle(
-                    color: _navy,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  _isArabic
-                      ? 'الموتوسيكل يتحرك ويدور تلقائياً مع موقع واتجاه المندوب الحقيقي.'
-                      : 'The motorcycle follows the delegate’s real GPS position and heading.',
-                  style: const TextStyle(
-                    color: _softText,
-                    fontSize: 12.5,
-                    height: 1.45,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: _isLiveTracking
-                  ? const Color(0xffECF8F1)
-                  : const Color(0xffFFF4E8),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _isLiveTracking
-                      ? Icons.wifi_tethering_rounded
-                      : Icons.gps_not_fixed_rounded,
-                  size: 15,
-                  color: _isLiveTracking ? const Color(0xff319B63) : _orange,
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  _isLiveTracking
-                      ? (_isArabic ? 'مباشر' : 'LIVE')
-                      : (_isLocating
-                          ? (_isArabic ? 'جاري...' : 'Locating')
-                          : (_isArabic ? 'متوقف' : 'Paused')),
-                  style: TextStyle(
-                    color: _isLiveTracking ? const Color(0xff267C51) : _orange,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+      );
 
-  Widget _buildMapCard(double mapHeight) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: const Color(0xffE9EBEF)),
-        boxShadow: [
-          BoxShadow(
-            color: _navy.withOpacity(.10),
-            blurRadius: 30,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: SizedBox(
-        height: mapHeight,
+  Widget _liveCard() => _card(
+        child: Row(
+          children: [
+            Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xffFF9A17), Color(0xffFF6500)],
+                ),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Icon(
+                Icons.two_wheeler_rounded,
+                color: Colors.white,
+                size: 29,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _isArabic ? 'موقعك الحالي مباشر' : 'Your live location',
+                    style: const TextStyle(
+                      color: _navy,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _isArabic
+                        ? 'الموتوسيكل يتحرك ويلف مع موقع واتجاه المندوب الحقيقي.'
+                        : 'The motorcycle follows the delegate GPS and heading.',
+                    style: const TextStyle(
+                      color: _softText,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _badge(),
+          ],
+        ),
+      );
+
+  Widget _mapCard(double height) => Container(
+        height: height,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: _navy.withOpacity(.10),
+              blurRadius: 28,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
         child: Stack(
           children: [
             Positioned.fill(
-              child: GoogleMap(
-                markers: markers,
-                mapType: MapType.normal,
-                myLocationButtonEnabled: false,
-                myLocationEnabled: false,
-                mapToolbarEnabled: false,
-                zoomControlsEnabled: false,
-                compassEnabled: false,
-                buildingsEnabled: true,
-                trafficEnabled: false,
-                onMapCreated: (controller) async {
-                  gmc = controller;
-                  if (_modernMapStyle != null) {
-                    await controller.setMapStyle(_modernMapStyle);
-                  }
-                  if (_hasLocation) {
-                    await controller.animateCamera(
-                      CameraUpdate.newCameraPosition(
-                        CameraPosition(
-                          target: LatLng(currentLat!, currentLng!),
-                          zoom: 16.8,
-                          tilt: 38,
-                          bearing: _currentHeading,
-                        ),
-                      ),
-                    );
-                  }
-                },
+              child: MapLibreMap(
+                styleString: _styleUrl,
                 initialCameraPosition: CameraPosition(
-                  target: LatLng(currentLat ?? 31.043867, currentLng ?? 31.388388),
-                  zoom: 15.5,
-                  tilt: 32,
+                  target: LatLng(_lat ?? 31.043867, _lng ?? 31.388388),
+                  zoom: 15.7,
+                  tilt: 42,
                 ),
+                onMapCreated: _onMapCreated,
+                onStyleLoadedCallback: _onStyleLoaded,
+                compassEnabled: false,
+                myLocationEnabled: false,
+                trackCameraPosition: true,
               ),
             ),
             PositionedDirectional(
-              start: 14,
               top: 14,
+              start: 14,
               end: 14,
-              child: IgnorePointer(
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(.94),
-                      borderRadius: BorderRadius.circular(15),
-                      border: Border.all(color: const Color(0xffECEEF1)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _navy.withOpacity(.08),
-                          blurRadius: 14,
-                          offset: const Offset(0, 5),
+              child: Center(
+                child: _glass(
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.wifi_tethering_rounded,
+                        color: Color(0xff319B63),
+                        size: 17,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _isArabic
+                            ? 'تتبع مباشر لموقع المندوب'
+                            : 'Live delegate tracking',
+                        style: const TextStyle(
+                          color: _navy,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
                         ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _isLiveTracking
-                              ? Icons.wifi_tethering_rounded
-                              : Icons.gps_not_fixed_rounded,
-                          color: _isLiveTracking
-                              ? const Color(0xff319B63)
-                              : _orange,
-                          size: 17,
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            _isLiveTracking
-                                ? (_isArabic
-                                    ? 'تتبع مباشر لموقع المندوب'
-                                    : 'Live delegate location tracking')
-                                : (_isArabic
-                                    ? 'في انتظار إشارة الموقع'
-                                    : 'Waiting for location signal'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: _navy,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
+                ),
+              ),
+            ),
+            if (_showBikeCard && _hasLocation)
+              PositionedDirectional(
+                start: 14,
+                end: 14,
+                bottom: 82,
+                child: _bikeInfo(),
+              ),
+            PositionedDirectional(
+              start: 14,
+              bottom: 14,
+              child: _glass(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.speed_rounded, color: _orange, size: 18),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${_speedKmh.round()} ${_isArabic ? 'كم/س' : 'km/h'}',
+                      style: const TextStyle(
+                        color: _navy,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -865,223 +700,224 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
+      );
 
-  Widget _buildSelectedLocationCard() {
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xffECEEF1)),
-        boxShadow: [
-          BoxShadow(
-            color: _navy.withOpacity(.055),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: const Color(0xffFFF0E3),
-              borderRadius: BorderRadius.circular(17),
+  Widget _locationCard() => _card(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: const Color(0xffFFF0E3),
+                borderRadius: BorderRadius.circular(17),
+              ),
+              child: const Icon(Icons.near_me_rounded, color: _orange),
             ),
-            child: const Icon(
-              Icons.near_me_rounded,
-              color: _orange,
-              size: 25,
-            ),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _isArabic ? 'الموقع الحالي' : 'Current location',
-                        style: const TextStyle(
-                          color: _navy,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                    if (_hasLocation)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: _isLiveTracking
-                              ? const Color(0xffECF8F1)
-                              : const Color(0xffFFF4E8),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          _isLiveTracking
-                              ? (_isArabic ? 'يتحدث تلقائياً' : 'Auto updating')
-                              : (_isArabic ? 'آخر موقع' : 'Last location'),
-                          style: TextStyle(
-                            color: _isLiveTracking
-                                ? const Color(0xff267C51)
-                                : _orange,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _locationTitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: _isLocating ? _softText : _navy,
-                    fontSize: 13.5,
-                    height: 1.45,
-                    fontWeight: _isLocating ? FontWeight.w500 : FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 9),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: const Color(0xffF7F8FA),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.pin_drop_outlined,
-                            color: Color(0xff9AA0AA),
-                            size: 15,
+                      Expanded(
+                        child: Text(
+                          _isArabic ? 'الموقع الحالي' : 'Current location',
+                          style: const TextStyle(
+                            color: _navy,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
                           ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              _coordinatesText,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Color(0xff747B86),
-                                fontSize: 11.5,
-                                letterSpacing: .2,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                      const SizedBox(height: 7),
-                      Row(
-                        children: [
-                          Icon(
-                            _isLiveTracking
-                                ? Icons.gps_fixed_rounded
-                                : Icons.history_rounded,
-                            color: _isLiveTracking
-                                ? const Color(0xff319B63)
-                                : const Color(0xff9AA0AA),
-                            size: 15,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              _accuracyText,
-                              style: TextStyle(
-                                color: _isLiveTracking
-                                    ? const Color(0xff267C51)
-                                    : const Color(0xff747B86),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                      _badge(),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 6),
+                  Text(
+                    _isLocating
+                        ? (_isArabic
+                            ? 'جارٍ تحديد موقعك...'
+                            : 'Detecting your location...')
+                        : (_address ??
+                            (_isArabic ? 'موقع المندوب الحالي' : 'Current location')),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _navy,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(11),
+                    decoration: BoxDecoration(
+                      color: const Color(0xffF7F8FA),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        _info(Icons.pin_drop_outlined, _coordinates),
+                        const SizedBox(height: 7),
+                        _info(Icons.gps_fixed_rounded, _accuracyText),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+      );
 
-  Widget _buildWarningCard() {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: const Color(0xffFFF8EC),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xffFFE3B7)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.info_outline_rounded,
-            color: Color(0xffC77A18),
-            size: 20,
+  Widget _bikeInfo() => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _navy.withOpacity(.94),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: _orange,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: const Icon(Icons.two_wheeler_rounded, color: Colors.white),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _isArabic ? 'GO مباشر' : 'GO Live',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    '${_speedKmh.round()} ${_isArabic ? 'كم/س' : 'km/h'} • $_accuracyText',
+                    style: const TextStyle(
+                      color: Color(0xffD7E4EF),
+                      fontSize: 10.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _badge() => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: _isLive ? const Color(0xffECF8F1) : const Color(0xffFFF4E8),
+          borderRadius: BorderRadius.circular(11),
+        ),
+        child: Text(
+          _isLive
+              ? (_isArabic ? 'مباشر' : 'LIVE')
+              : (_isLocating
+                  ? (_isArabic ? 'جاري...' : 'Locating')
+                  : (_isArabic ? 'متوقف' : 'Paused')),
+          style: TextStyle(
+            color: _isLive ? const Color(0xff267C51) : _orange,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
           ),
-          const SizedBox(width: 9),
+        ),
+      );
+
+  Widget _warningCard() => Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: const Color(0xffFFF8EC),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xffFFE3B7)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.info_outline_rounded, color: Color(0xffC77A18)),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                _locationError!,
+                style: const TextStyle(
+                  color: Color(0xff9A661F),
+                  fontSize: 11.5,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _info(IconData icon, String value) => Row(
+        children: [
+          Icon(icon, color: const Color(0xff747B86), size: 15),
+          const SizedBox(width: 6),
           Expanded(
             child: Text(
-              _locationError!,
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                color: Color(0xff9A661F),
-                fontSize: 11.5,
-                height: 1.45,
-                fontWeight: FontWeight.w600,
+                color: Color(0xff747B86),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
-}
+      );
 
-class _LocationBackgroundPainter extends CustomPainter {
-  const _LocationBackgroundPainter();
+  Widget _glass(Widget child) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(.94),
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: _navy.withOpacity(.08),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: child,
+      );
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    const orange = Color(0xffFD7201);
+  BoxDecoration _iconBox() => BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xffECEEF1)),
+      );
 
-    canvas.drawCircle(
-      Offset(size.width * .05, 0),
-      size.width * .34,
-      Paint()..color = orange.withOpacity(.055),
-    );
-    canvas.drawCircle(
-      Offset(size.width * .34, -28),
-      size.width * .24,
-      Paint()..color = orange.withOpacity(.022),
-    );
-    canvas.drawCircle(
-      Offset(size.width * 1.04, size.height * .73),
-      size.width * .30,
-      Paint()..color = orange.withOpacity(.022),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  Widget _card({required Widget child}) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xffECEEF1)),
+          boxShadow: [
+            BoxShadow(
+              color: _navy.withOpacity(.055),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: child,
+      );
 }
