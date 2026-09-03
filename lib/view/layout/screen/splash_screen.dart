@@ -4,14 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../../../../helpers/images/app_images.dart';
 import '../../../../../../helpers/networking/api_helper.dart';
 import '../../../../../../helpers/utils/navigator_methods.dart';
 import '../../../helpers/hive/hive_methods.dart';
 import '../../../helpers/pusher_service/pusher_controller.dart';
-import '../../../helpers/theme/app_colors.dart';
 import '../../custom_widgets/api_response_widget/api_response_widget.dart';
-import '../../custom_widgets/custom_image/custom_image.dart';
 import '../auth/controller/auth_controller.dart';
 import '../auth/screen/login_screen.dart';
 import '../delegate_bottom_nav_bar.dart/screen/delegate_bottom_nav_bar_screen.dart';
@@ -38,14 +35,8 @@ class _SplashScreenState extends State<SplashScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      backgroundColor: AppColor.main2AppColor(context),
-      body: const CustomImage(
-        path: AppImages.delegateSplash,
-        type: ImageType.asset,
-        fit: BoxFit.cover,
-        height: double.infinity,
-        width: double.infinity,
-      ),
+      backgroundColor: Colors.white,
+      body: const SizedBox.expand(child: _GoDriveOpening()),
       bottomNavigationBar: SizedBox(
         height: 80,
         child: Padding(
@@ -77,7 +68,10 @@ class _SplashScreenState extends State<SplashScreen> {
   void _goHome() {
     if (!mounted || _navigated) return;
     _navigated = true;
-    NavigatorMethods.pushNamedAndRemoveUntil(context, DelegateBottomNavBarScreen.routeName);
+    NavigatorMethods.pushNamedAndRemoveUntil(
+      context,
+      DelegateBottomNavBarScreen.routeName,
+    );
   }
 
   void _initial() {
@@ -129,5 +123,58 @@ class _SplashScreenState extends State<SplashScreen> {
       HiveMethods.deleteToken();
       _goLogin();
     }
+  }
+}
+
+class _GoDriveOpening extends StatelessWidget {
+  const _GoDriveOpening();
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: FittedBox(
+        fit: BoxFit.cover,
+        child: SizedBox(
+          width: 600,
+          height: 1301,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              _SplashTile('assets/images/go_drive_splash_01.webp', 130),
+              SizedBox(width: 600, height: 130, child: ColoredBox(color: Colors.white)),
+              _SplashTile('assets/images/go_drive_splash_03.webp', 130),
+              _SplashTile('assets/images/go_drive_splash_04.webp', 130),
+              _SplashTile('assets/images/go_drive_splash_05.webp', 130),
+              _SplashTile('assets/images/go_drive_splash_06.webp', 131),
+              _SplashTile('assets/images/go_drive_splash_07.webp', 130),
+              _SplashTile('assets/images/go_drive_splash_08.webp', 130),
+              _SplashTile('assets/images/go_drive_splash_09.webp', 130),
+              _SplashTile('assets/images/go_drive_splash_10.webp', 130),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SplashTile extends StatelessWidget {
+  const _SplashTile(this.path, this.tileHeight);
+
+  final String path;
+  final double tileHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 600,
+      height: tileHeight,
+      child: Image.asset(
+        path,
+        fit: BoxFit.fill,
+        filterQuality: FilterQuality.high,
+        gaplessPlayback: true,
+      ),
+    );
   }
 }
