@@ -97,7 +97,12 @@ class DelegateNavigationStep {
 }
 
 class DelegateNavigationService {
-  static const _baseUrl = 'https://router.project-osrm.org';
+  // The first endpoint is the same public OSRM family used by OpenStreetMap
+  // directions. The project demo server remains a fallback only.
+  static const List<String> _routingBases = [
+    'https://routing.openstreetmap.de/routed-car',
+    'https://router.project-osrm.org',
+  ];
 
   Future<DelegateNavigationRoute> route({
     required double fromLat,
@@ -105,19 +110,44 @@ class DelegateNavigationService {
     required double toLat,
     required double toLng,
   }) async {
+    Object? lastError;
+
+    for (final base in _routingBases) {
+      try {
+        return await _requestRoute(
+          base: base,
+          fromLat: fromLat,
+          fromLng: fromLng,
+          toLat: toLat,
+          toLng: toLng,
+        );
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    throw Exception('All routing providers failed: $lastError');
+  }
+
+  Future<DelegateNavigationRoute> _requestRoute({
+    required String base,
+    required double fromLat,
+    required double fromLng,
+    required double toLat,
+    required double toLng,
+  }) async {
     final coordinates = '$fromLng,$fromLat;$toLng,$toLat';
     final uri = Uri.parse(
-      '$_baseUrl/route/v1/driving/$coordinates'
-      '?overview=full&geometries=geojson&steps=true&alternatives=false',
+      '$base/route/v1/driving/$coordinates'
+      '?overview=simplified&geometries=geojson&steps=true&alternatives=false',
     );
 
+    // Do not set User-Agent here. Browsers treat it as a forbidden header and
+    // it can make Flutter Web routing fail before a response is returned.
     final response = await http.get(
       uri,
-      headers: const {
-        'Accept': 'application/json',
-        'User-Agent': 'GoDrive/1.0',
-      },
-    ).timeout(const Duration(seconds: 12));
+      headers: const {'Accept': 'application/json'},
+    ).timeout(const Duration(seconds: 9));
 
     if (response.statusCode != 200) {
       throw Exception('Routing request failed (${response.statusCode})');
@@ -177,7 +207,9 @@ class DelegateNavigationService {
       }
     }
 
-    if (geometry.length < 2) throw Exception('Route geometry is empty');
+    if (geometry.length < 2) {
+      throw Exception('Route geometry is empty');
+    }
 
     return DelegateNavigationRoute(
       geometry: geometry,
