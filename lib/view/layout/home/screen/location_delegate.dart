@@ -18,6 +18,8 @@ import '../../../../helpers/utils/navigator_methods.dart';
 import '../../../custom_widgets/buttons/custom_button.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../../delegate_bottom_nav_bar.dart/screen/delegate_bottom_nav_bar_screen.dart';
+import '../../order/screen/delivery_location_screen.dart';
+import '../service/delegate_address_search_service.dart';
 
 class DelegateLocationScreen extends StatefulWidget {
   static const String routeName = 'DelegateLocationScreen';
@@ -36,10 +38,17 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
   static const _bikeImageId = 'go-motorcycle';
 
   final List<Placemark> _placemarks = [];
+  final DelegateAddressSearchService _searchService =
+      DelegateAddressSearchService();
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+
   MapLibreMapController? _mapController;
   Symbol? _bike;
   Circle? _pulse;
+  Circle? _destinationMarker;
   StreamSubscription<Position>? _positionSubscription;
+  Timer? _searchDebounce;
 
   double? _lat;
   double? _lng;
@@ -53,12 +62,18 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
   bool _styleReady = false;
   bool _showBikeCard = false;
   bool _isResolvingAddress = false;
+  bool _followBikeEnabled = true;
+  bool _searchLoading = false;
+  String? _searchError;
+  List<DelegateAddressSearchResult> _searchResults = const [];
+  DelegateAddressSearchResult? _selectedDestination;
   DateTime? _lastAddressAt;
   double? _lastAddressLat;
   double? _lastAddressLng;
 
   bool get _isArabic => context.locale.languageCode == 'ar';
   bool get _hasLocation => _lat != null && _lng != null;
+  bool get _hasDestination => _selectedDestination != null;
 
   @override
   void initState() {
@@ -68,7 +83,10 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _positionSubscription?.cancel();
+    _searchController.dispose();
+    _searchFocus.dispose();
     _mapController?.dispose();
     super.dispose();
   }
@@ -91,14 +109,19 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
       await controller.addImage(_bikeImageId, bytes);
       _styleReady = true;
       await _syncBike();
-      await _followBike(initial: true);
+      await _syncDestinationMarker();
+      if (_selectedDestination != null) {
+        await _focusDestination(_selectedDestination!);
+      } else {
+        await _followBike(initial: true);
+      }
     } catch (e) {
       log('MapLibre style setup failed: $e');
       if (mounted) {
         setState(() {
           _locationError = _isArabic
-              ? 'تعذر تحميل علامة الموتوسيكل على الخريطة.'
-              : 'Could not load the motorcycle marker.';
+              ? 'تعذر تحميل عناصر الخريطة.'
+              : 'Could not load map elements.';
         });
       }
     }
@@ -149,9 +172,38 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
     }
   }
 
+  Future<void> _syncDestinationMarker() async {
+    final controller = _mapController;
+    final destination = _selectedDestination;
+    if (!_styleReady || controller == null) return;
+
+    try {
+      if (_destinationMarker != null) {
+        await controller.removeCircle(_destinationMarker!);
+        _destinationMarker = null;
+      }
+      if (destination == null) return;
+
+      _destinationMarker = await controller.addCircle(
+        CircleOptions(
+          geometry: LatLng(destination.lat, destination.lng),
+          circleRadius: 13,
+          circleColor: '#FD7201',
+          circleOpacity: .98,
+          circleStrokeColor: '#FFFFFF',
+          circleStrokeWidth: 4,
+          circleStrokeOpacity: 1,
+        ),
+      );
+    } catch (e) {
+      log('Destination marker update failed: $e');
+    }
+  }
+
   Future<void> _followBike({bool initial = false}) async {
     final controller = _mapController;
     if (!_styleReady || controller == null || !_hasLocation) return;
+    if (!_followBikeEnabled && !initial) return;
     try {
       await controller.animateCamera(
         CameraUpdate.newCameraPosition(
@@ -169,6 +221,26 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
     }
   }
 
+  Future<void> _focusDestination(DelegateAddressSearchResult destination) async {
+    final controller = _mapController;
+    if (!_styleReady || controller == null) return;
+    try {
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(destination.lat, destination.lng),
+            zoom: 16.7,
+            tilt: 38,
+            bearing: 0,
+          ),
+        ),
+        duration: const Duration(milliseconds: 650),
+      );
+    } catch (e) {
+      log('Destination camera focus failed: $e');
+    }
+  }
+
   Future<void> _determinePosition() async {
     await _positionSubscription?.cancel();
     _positionSubscription = null;
@@ -178,6 +250,7 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
         _isLocating = true;
         _isLive = false;
         _locationError = null;
+        _followBikeEnabled = true;
       });
     }
 
@@ -285,7 +358,9 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
     HiveMethods.updateLan(position.longitude);
 
     await _syncBike();
-    await _followBike(initial: forceCamera);
+    if (_followBikeEnabled || forceCamera) {
+      await _followBike(initial: forceCamera);
+    }
     await _resolveAddressIfNeeded(
       position.latitude,
       position.longitude,
@@ -375,6 +450,117 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
     }
   }
 
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    final query = value.trim();
+
+    if (_selectedDestination != null &&
+        query != _selectedDestination!.fullAddress) {
+      _clearDestination(clearText: false);
+    }
+
+    if (query.length < 2) {
+      if (mounted) {
+        setState(() {
+          _searchResults = const [];
+          _searchLoading = false;
+          _searchError = null;
+        });
+      }
+      return;
+    }
+
+    _searchDebounce = Timer(
+      const Duration(milliseconds: 700),
+      () => _performSearch(query),
+    );
+  }
+
+  Future<void> _performSearch(String query) async {
+    if (!mounted) return;
+    setState(() {
+      _searchLoading = true;
+      _searchError = null;
+    });
+
+    try {
+      final results = await _searchService.search(query, isArabic: _isArabic);
+      if (!mounted || _searchController.text.trim() != query) return;
+      setState(() {
+        _searchResults = results;
+        _searchLoading = false;
+        _searchError = results.isEmpty
+            ? (_isArabic ? 'لم يتم العثور على نتائج' : 'No addresses found')
+            : null;
+      });
+    } catch (e) {
+      log('Address search failed: $e');
+      if (!mounted) return;
+      setState(() {
+        _searchLoading = false;
+        _searchResults = const [];
+        _searchError = _isArabic
+            ? 'تعذر البحث الآن. حاول مرة أخرى.'
+            : 'Search is unavailable right now. Try again.';
+      });
+    }
+  }
+
+  Future<void> _selectDestination(DelegateAddressSearchResult result) async {
+    _searchDebounce?.cancel();
+    _searchFocus.unfocus();
+    SystemChannels.textInput.invokeMethod('TextInput.hide');
+
+    setState(() {
+      _selectedDestination = result;
+      _searchController.text = result.fullAddress;
+      _searchResults = const [];
+      _searchError = null;
+      _searchLoading = false;
+      _followBikeEnabled = false;
+    });
+
+    await _syncDestinationMarker();
+    await _focusDestination(result);
+  }
+
+  Future<void> _clearDestination({bool clearText = true}) async {
+    final controller = _mapController;
+    if (mounted) {
+      setState(() {
+        _selectedDestination = null;
+        _searchResults = const [];
+        _searchError = null;
+        _followBikeEnabled = true;
+        if (clearText) _searchController.clear();
+      });
+    }
+
+    try {
+      if (controller != null && _destinationMarker != null) {
+        await controller.removeCircle(_destinationMarker!);
+      }
+    } catch (_) {}
+    _destinationMarker = null;
+    await _followBike(initial: true);
+  }
+
+  void _startDestinationNavigation() {
+    final destination = _selectedDestination;
+    if (destination == null) return;
+
+    NavigatorMethods.pushNamed(
+      context,
+      DeliveryLocationScreen.routeName,
+      arguments: DeliveryLocationArgs(
+        lat: destination.lat,
+        lng: destination.lng,
+        address: destination.fullAddress,
+        navigationMode: true,
+      ),
+    );
+  }
+
   void _confirm(BuildContext context) {
     if (!_hasLocation) {
       CommonMethods.showError(
@@ -424,13 +610,14 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
   @override
   Widget build(BuildContext context) {
     final mapHeight =
-        (MediaQuery.sizeOf(context).height * .50).clamp(380.0, 540.0).toDouble();
+        (MediaQuery.sizeOf(context).height * .43).clamp(350.0, 500.0).toDouble();
 
     return Scaffold(
       backgroundColor: const Color(0xffF7F8FA),
       body: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 130),
           child: Center(
             child: ConstrainedBox(
@@ -438,12 +625,14 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
               child: Column(
                 children: [
                   _header(),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 14),
                   _liveCard(),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
+                  _searchCard(),
+                  const SizedBox(height: 12),
                   _mapCard(mapHeight),
-                  const SizedBox(height: 16),
-                  _locationCard(),
+                  const SizedBox(height: 14),
+                  _hasDestination ? _destinationCard() : _locationCard(),
                   if (_locationError != null) ...[
                     const SizedBox(height: 12),
                     _warningCard(),
@@ -462,12 +651,16 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
             height: 60,
             radius: 20,
             hasShadow: true,
-            text: AppLocaleKey.confirm.tr(),
+            text: _hasDestination
+                ? (_isArabic ? 'ابدأ الملاحة' : 'Start navigation')
+                : AppLocaleKey.confirm.tr(),
             gradient: const LinearGradient(
               colors: [Color(0xffFF8A08), Color(0xffFF6500)],
             ),
-            prefixIcon: const Icon(
-              Icons.check_circle_outline_rounded,
+            prefixIcon: Icon(
+              _hasDestination
+                  ? Icons.navigation_rounded
+                  : Icons.check_circle_outline_rounded,
               color: Colors.white,
             ),
             style: const TextStyle(
@@ -475,7 +668,9 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
               fontSize: 19,
               fontWeight: FontWeight.w800,
             ),
-            onPressed: _hasLocation ? () => _confirm(context) : null,
+            onPressed: _hasDestination
+                ? _startDestinationNavigation
+                : (_hasLocation ? () => _confirm(context) : null),
           ),
         ),
       ),
@@ -492,8 +687,10 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
                 width: 48,
                 height: 48,
                 decoration: _iconBox(),
-                child: const Icon(
-                  Icons.arrow_back_rounded,
+                child: Icon(
+                  _isArabic
+                      ? Icons.arrow_forward_rounded
+                      : Icons.arrow_back_rounded,
                   color: _orange,
                   size: 26,
                 ),
@@ -515,8 +712,8 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
                   const SizedBox(height: 4),
                   Text(
                     _isArabic
-                        ? 'MapLibre + OpenFreeMap • خريطة حديثة بدون Google'
-                        : 'MapLibre + OpenFreeMap • modern open map',
+                        ? 'حدد موقعك أو ابحث عن وجهة للبدء'
+                        : 'Confirm your location or search for a destination',
                     style: const TextStyle(
                       color: _softText,
                       fontSize: 12,
@@ -526,6 +723,7 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
                 ],
               ),
             ),
+            const Icon(Icons.location_on_outlined, color: _orange, size: 26),
           ],
         ),
       );
@@ -580,6 +778,208 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
         ),
       );
 
+  Widget _searchCard() => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: _searchFocus.hasFocus
+                ? const Color(0xffFFB16B)
+                : const Color(0xffE8EAEE),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _navy.withOpacity(.055),
+              blurRadius: 18,
+              offset: const Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Focus(
+              onFocusChange: (_) {
+                if (mounted) setState(() {});
+              },
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocus,
+                textInputAction: TextInputAction.search,
+                onChanged: _onSearchChanged,
+                onSubmitted: (value) {
+                  _searchDebounce?.cancel();
+                  if (value.trim().length >= 2) _performSearch(value.trim());
+                },
+                style: const TextStyle(
+                  color: _navy,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+                decoration: InputDecoration(
+                  hintText: _isArabic
+                      ? 'ابحث عن شارع، منطقة أو عنوان...'
+                      : 'Search street, area or address...',
+                  hintStyle: const TextStyle(
+                    color: Color(0xff9AA0AA),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  prefixIcon: const Icon(Icons.search_rounded, color: _orange),
+                  suffixIcon: _searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          onPressed: () => _clearDestination(),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Color(0xff8B919B),
+                          ),
+                        ),
+                  filled: true,
+                  fillColor: const Color(0xffF8F9FB),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 14,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(
+                      color: Color(0xffFFC28C),
+                      width: 1.1,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (_searchLoading) ...[
+              const SizedBox(height: 9),
+              const LinearProgressIndicator(
+                color: _orange,
+                backgroundColor: Color(0xffFFF0E3),
+                minHeight: 2,
+              ),
+            ],
+            if (_searchError != null && !_searchLoading) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, color: _orange, size: 17),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _searchError!,
+                      style: const TextStyle(
+                        color: _softText,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (_searchResults.isNotEmpty) ...[
+              const SizedBox(height: 7),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 270),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xffECEEF1)),
+                ),
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  shrinkWrap: true,
+                  itemCount: _searchResults.length,
+                  separatorBuilder: (_, __) => const Divider(
+                    height: 1,
+                    indent: 48,
+                    color: Color(0xffF0F1F3),
+                  ),
+                  itemBuilder: (context, index) {
+                    final result = _searchResults[index];
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _selectDestination(result),
+                        borderRadius: BorderRadius.circular(14),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 10,
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xffFFF1E5),
+                                  borderRadius: BorderRadius.circular(11),
+                                ),
+                                child: const Icon(
+                                  Icons.location_on_rounded,
+                                  color: _orange,
+                                  size: 19,
+                                ),
+                              ),
+                              const SizedBox(width: 9),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      result.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: _navy,
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    if (result.subtitle.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        result.subtitle,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: _softText,
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                Icons.chevron_right_rounded,
+                                color: Color(0xffA6ABB3),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+
   Widget _mapCard(double height) => Container(
         height: height,
         clipBehavior: Clip.antiAlias,
@@ -619,16 +1019,22 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.wifi_tethering_rounded,
-                        color: Color(0xff319B63),
+                      Icon(
+                        _hasDestination
+                            ? Icons.flag_rounded
+                            : Icons.wifi_tethering_rounded,
+                        color: _hasDestination
+                            ? _orange
+                            : const Color(0xff319B63),
                         size: 17,
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        _isArabic
-                            ? 'تتبع مباشر لموقع المندوب'
-                            : 'Live delegate tracking',
+                        _hasDestination
+                            ? (_isArabic ? 'الوجهة جاهزة للملاحة' : 'Destination ready')
+                            : (_isArabic
+                                ? 'تتبع مباشر لموقع المندوب'
+                                : 'Live delegate tracking'),
                         style: const TextStyle(
                           color: _navy,
                           fontSize: 11.5,
@@ -676,7 +1082,14 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
                 borderRadius: BorderRadius.circular(18),
                 elevation: 5,
                 child: InkWell(
-                  onTap: _isLocating ? null : _determinePosition,
+                  onTap: _isLocating
+                      ? null
+                      : () async {
+                          if (mounted) {
+                            setState(() => _followBikeEnabled = true);
+                          }
+                          await _followBike(initial: true);
+                        },
                   borderRadius: BorderRadius.circular(18),
                   child: SizedBox(
                     width: 54,
@@ -701,6 +1114,100 @@ class _DelegateLocationScreenState extends State<DelegateLocationScreen> {
           ],
         ),
       );
+
+  Widget _destinationCard() {
+    final destination = _selectedDestination!;
+    return _card(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xffFF9A17), Color(0xffFF6500)],
+              ),
+              borderRadius: BorderRadius.circular(17),
+            ),
+            child: const Icon(Icons.flag_rounded, color: Colors.white),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _isArabic ? 'الوجهة المختارة' : 'Selected destination',
+                        style: const TextStyle(
+                          color: _navy,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xffFFF0E3),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        _isArabic ? 'جاهزة' : 'READY',
+                        style: const TextStyle(
+                          color: _orange,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  destination.fullAddress,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _navy,
+                    fontSize: 13,
+                    height: 1.4,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 9),
+                Row(
+                  children: [
+                    const Icon(Icons.route_rounded, color: _orange, size: 17),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _isArabic
+                            ? 'اضغط ابدأ الملاحة لرسم الطريق البرتقالي والتوجيه للوجهة.'
+                            : 'Start navigation to draw the orange route and begin guidance.',
+                        style: const TextStyle(
+                          color: _softText,
+                          fontSize: 10.5,
+                          height: 1.35,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _locationCard() => _card(
         child: Row(
