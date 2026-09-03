@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 
 import '../../../../helpers/networking/api_helper.dart';
 import '../../../../helpers/networking/urls.dart';
+import '../../../../helpers/routes/app_routers_import.dart';
 import '../../../../helpers/utils/common_methods.dart';
 import '../../../../helpers/utils/navigator_methods.dart';
 import '../model/delegate_order_model.dart';
 import '../model/delegate_pagination_model.dart';
+import '../screen/delivery_location_screen.dart';
 
 class DelegateOrdersController extends ChangeNotifier {
   void getAllDelegateOrders() {
@@ -215,10 +217,55 @@ class DelegateOrdersController extends ChangeNotifier {
     if (response.state == ResponseState.complete) {
       CommonMethods.showToast(message: response.data['message']);
       onSuccess.call();
+      if (status == 'accept') {
+        _openAcceptedOrderNavigation(orderId);
+      }
       notifyListeners();
     } else {
       CommonMethods.showError(message: response.data['message'], apiResponse: response);
     }
+  }
+
+  void _openAcceptedOrderNavigation(int orderId) {
+    final order = _delegateSingleOrder;
+    if (order == null) return;
+
+    final isShipping = order.type == 'shipping';
+    final lat = double.tryParse(
+      isShipping ? (order.toLat ?? '') : (order.userAddress?.lat ?? ''),
+    );
+    final lng = double.tryParse(
+      isShipping ? (order.toLng ?? '') : (order.userAddress?.lng ?? ''),
+    );
+
+    if (lat == null || lng == null || (lat == 0 && lng == 0)) {
+      CommonMethods.showError(
+        message: 'تعذر تشغيل الملاحة لأن موقع العميل غير متاح.',
+      );
+      return;
+    }
+
+    final addressParts = <String>[
+      if (isShipping) order.toAddress ?? '',
+      if (!isShipping) order.userAddress?.address ?? '',
+      if (!isShipping) order.userAddress?.streetName ?? '',
+    ].where((part) => part.trim().isNotEmpty).toList();
+    final address = addressParts.join('، ');
+
+    Future.delayed(const Duration(milliseconds: 180), () {
+      final context = AppRouters.navigatorKey.currentContext;
+      if (context == null || !context.mounted) return;
+      Navigator.of(context).pushNamed(
+        DeliveryLocationScreen.routeName,
+        arguments: DeliveryLocationArgs(
+          lat: lat,
+          lng: lng,
+          address: address,
+          orderId: orderId,
+          navigationMode: true,
+        ),
+      );
+    });
   }
 
   //==================================================== complete order ============================================================
