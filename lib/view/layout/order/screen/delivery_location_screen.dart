@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
+import '../../../../helpers/hive/hive_methods.dart';
 import '../../../../helpers/locale/app_locale_key.dart';
 import '../../../custom_widgets/custom_app_bar/custom_app_bar.dart';
 import '../service/delegate_navigation_service.dart';
@@ -36,7 +37,8 @@ class DeliveryLocationScreen extends StatefulWidget {
   const DeliveryLocationScreen({super.key, this.args});
 
   @override
-  State<DeliveryLocationScreen> createState() => _DeliveryLocationScreenState();
+  State<DeliveryLocationScreen> createState() =>
+      _DeliveryLocationScreenState();
 }
 
 class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
@@ -70,6 +72,7 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
   String? _navigationError;
   int _stepIndex = 0;
   DateTime? _lastRouteAt;
+  DateTime? _lastRouteAttemptAt;
   double? _lastRouteLat;
   double? _lastRouteLng;
 
@@ -80,8 +83,21 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
   @override
   void initState() {
     super.initState();
+
+    // The delegate location screen already keeps the latest GPS position in
+    // Hive. Seed navigation with it immediately so opening navigation never
+    // waits on a second GPS fix before it can calculate the route.
+    final savedLat = HiveMethods.getLat();
+    final savedLng = HiveMethods.getLan();
+    if (savedLat != null && savedLng != null) {
+      _currentLat = savedLat;
+      _currentLng = savedLng;
+    }
+
     if (_navigationMode) {
-      _startNavigationLocation();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_startNavigationLocation());
+      });
     }
   }
 
@@ -122,31 +138,46 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
 
       _styleReady = true;
 
-      if (_navigationMode && _hasCurrentLocation) {
-        await _syncBike();
-        await _loadRoute(force: true);
-        await _followDriver(initial: true);
+      if (_navigationMode) {
+        if (_hasCurrentLocation) {
+          await _syncBike();
+          await _loadRoute(force: true);
+          await _followDriver(initial: true);
+        } else {
+          await _focusDestination();
+        }
       } else {
-        await controller.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: LatLng(args.lat, args.lng),
-              zoom: 16.8,
-              tilt: 38,
-            ),
-          ),
-          duration: const Duration(milliseconds: 550),
-        );
+        await _focusDestination();
       }
     } catch (e) {
       log('Navigation map setup failed: $e');
-      if (mounted) {
-        setState(() {
-          _navigationError = _isArabic
-              ? 'تعذر تجهيز الخريطة للملاحة.'
-              : 'Could not prepare the navigation map.';
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _navigationError = _isArabic
+            ? 'تعذر تجهيز الخريطة للملاحة.'
+            : 'Could not prepare the navigation map.';
+      });
+    }
+  }
+
+  Future<void> _focusDestination() async {
+    final controller = _mapController;
+    final args = widget.args;
+    if (controller == null || args == null) return;
+
+    try {
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(args.lat, args.lng),
+            zoom: 16.2,
+            tilt: 35,
+          ),
+        ),
+        duration: const Duration(milliseconds: 500),
+      );
+    } catch (e) {
+      log('Destination camera failed: $e');
     }
   }
 
@@ -156,7 +187,7 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
 
     if (mounted) {
       setState(() {
-        _locationLoading = true;
+        _locationLoading = !_hasCurrentLocation;
         _navigationError = null;
       });
     }
@@ -175,44 +206,66 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
         throw Exception('Location permission denied');
       }
 
-      final first = await Geolocator.getCurrentPosition().timeout(
-        const Duration(seconds: 15),
-      );
-      await _handlePosition(first, initial: true);
+      // A fresh fix improves accuracy, but navigation no longer depends on it
+      // because the latest saved location is already available immediately.
+      try {
+        final first = await Geolocator.getCurrentPosition().timeout(
+          const Duration(seconds: 8),
+        );
+        await _handlePosition(first, initial: true);
+      } catch (e) {
+        log('Fresh navigation GPS fix unavailable, using saved fix: $e');
+        if (!_hasCurrentLocation) rethrow;
+      }
 
-      const settings = LocationSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 5,
-      );
-      _positionSubscription = Geolocator.getPositionStream(
-        locationSettings: settings,
-      ).listen(
-        (position) => _handlePosition(position),
-        onError: (Object error) {
-          log('Navigation GPS stream failed: $error');
-          if (mounted) {
-            setState(() {
-              _navigationError = _isArabic
-                  ? 'توقف تحديث GPS مؤقتًا. اضغط زر تحديد الموقع للمحاولة مرة أخرى.'
-                  : 'GPS updates paused. Tap the locate button to retry.';
-            });
-          }
-        },
-      );
+      _startGpsStream();
     } catch (e) {
       log('Navigation location failed: $e');
-      if (mounted) {
-        setState(() {
-          _locationLoading = false;
-          _navigationError = _isArabic
-              ? 'تعذر تحديد موقع المندوب. تأكد من تشغيل GPS والسماح بالموقع.'
-              : 'Could not detect driver location. Enable GPS and location permission.';
-        });
+      if (!mounted) return;
+      setState(() {
+        _locationLoading = false;
+        _navigationError = _hasCurrentLocation
+            ? (_isArabic
+                ? 'يتم استخدام آخر موقع معروف لحين عودة تحديث GPS.'
+                : 'Using the last known location until GPS updates resume.')
+            : (_isArabic
+                ? 'تعذر تحديد موقع المندوب. تأكد من تشغيل GPS والسماح بالموقع.'
+                : 'Could not detect driver location. Enable GPS and location permission.');
+      });
+
+      if (_hasCurrentLocation && _styleReady && _route == null) {
+        unawaited(_loadRoute(force: true));
       }
     }
   }
 
-  Future<void> _handlePosition(Position position, {bool initial = false}) async {
+  void _startGpsStream() {
+    final settings = LocationSettings(
+      accuracy:
+          kIsWeb ? LocationAccuracy.high : LocationAccuracy.bestForNavigation,
+      distanceFilter: 5,
+    );
+
+    _positionSubscription = Geolocator.getPositionStream(
+      locationSettings: settings,
+    ).listen(
+      (position) => unawaited(_handlePosition(position)),
+      onError: (Object error) {
+        log('Navigation GPS stream failed: $error');
+        if (!mounted) return;
+        setState(() {
+          _navigationError = _isArabic
+              ? 'توقف تحديث GPS مؤقتًا. اضغط زر تحديد الموقع للمحاولة مرة أخرى.'
+              : 'GPS updates paused. Tap the locate button to retry.';
+        });
+      },
+    );
+  }
+
+  Future<void> _handlePosition(
+    Position position, {
+    bool initial = false,
+  }) async {
     if (!mounted) return;
 
     final heading = position.heading.isFinite && position.heading >= 0
@@ -228,18 +281,25 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
       _heading = heading;
       _speedKmh = speed;
       _locationLoading = false;
-      _navigationError = null;
+      if (_route != null) _navigationError = null;
     });
 
-    await _syncBike();
-    _updateArrivalAndStep();
+    HiveMethods.updateLat(position.latitude);
+    HiveMethods.updateLan(position.longitude);
 
-    if (_followMode) {
-      await _followDriver(initial: initial);
-    }
+    if (_styleReady) {
+      await _syncBike();
+      _updateArrivalAndStep();
 
-    if (!_arrived && _shouldRefreshRoute()) {
-      await _loadRoute(force: _route == null);
+      if (_followMode) {
+        await _followDriver(initial: initial);
+      }
+
+      if (!_arrived && _shouldRefreshRoute()) {
+        // Never force here. A failed router must not be hammered on every GPS
+        // update; _loadRoute has a retry throttle.
+        unawaited(_loadRoute());
+      }
     }
   }
 
@@ -264,7 +324,7 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
 
     double nearestRouteDistance = double.infinity;
     final geometry = _route?.geometry ?? const <LatLng>[];
-    for (var i = 0; i < geometry.length; i += 4) {
+    for (var i = 0; i < geometry.length; i += 3) {
       final point = geometry[i];
       final distance = Geolocator.distanceBetween(
         _currentLat!,
@@ -275,8 +335,8 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
       if (distance < nearestRouteDistance) nearestRouteDistance = distance;
     }
 
-    final offRoute = nearestRouteDistance > 65;
-    final progressed = movedFromRouteStart > 90 && elapsed.inSeconds >= 18;
+    final offRoute = nearestRouteDistance > 70;
+    final progressed = movedFromRouteStart > 120 && elapsed.inSeconds >= 25;
     return offRoute || progressed;
   }
 
@@ -288,12 +348,18 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
 
     final now = DateTime.now();
     if (!force &&
-        _lastRouteAt != null &&
-        now.difference(_lastRouteAt!).inSeconds < 10) {
+        _lastRouteAttemptAt != null &&
+        now.difference(_lastRouteAttemptAt!).inSeconds < 12) {
       return;
     }
 
-    if (mounted) setState(() => _routeLoading = true);
+    _lastRouteAttemptAt = now;
+    if (mounted) {
+      setState(() {
+        _routeLoading = true;
+        if (_route == null) _navigationError = null;
+      });
+    }
 
     try {
       final result = await _navigationService.route(
@@ -308,8 +374,6 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
       _lastRouteLng = _currentLng;
       _stepIndex = 0;
       _route = result;
-      await _drawRoute(result.geometry);
-      _updateArrivalAndStep();
 
       if (mounted) {
         setState(() {
@@ -317,16 +381,18 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
           _navigationError = null;
         });
       }
+
+      await _drawRoute(result.geometry);
+      _updateArrivalAndStep();
     } catch (e) {
       log('Route calculation failed: $e');
-      if (mounted) {
-        setState(() {
-          _routeLoading = false;
-          _navigationError = _isArabic
-              ? 'تعذر حساب الطريق الآن. سيتم المحاولة تلقائيًا أثناء الحركة.'
-              : 'Could not calculate the route. It will retry automatically.';
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _routeLoading = false;
+        _navigationError = _isArabic
+            ? 'تعذر تحميل الطريق الآن. اضغط هنا لإعادة المحاولة.'
+            : 'Could not load the route. Tap here to retry.';
+      });
     }
   }
 
@@ -339,16 +405,24 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
         await controller.removeLine(_routeLine!);
         _routeLine = null;
       }
+
       _routeLine = await controller.addLine(
         LineOptions(
           geometry: points,
           lineColor: '#FD7201',
-          lineWidth: 6.0,
-          lineOpacity: .94,
+          lineWidth: 6.5,
+          lineOpacity: .96,
         ),
       );
     } catch (e) {
       log('Route drawing failed: $e');
+      if (mounted) {
+        setState(() {
+          _navigationError = _isArabic
+              ? 'تم حساب الطريق لكن تعذر رسمه. اضغط هنا لإعادة المحاولة.'
+              : 'Route calculated but could not be drawn. Tap to retry.';
+        });
+      }
     }
   }
 
@@ -412,12 +486,12 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
         CameraUpdate.newCameraPosition(
           CameraPosition(
             target: LatLng(_currentLat!, _currentLng!),
-            zoom: initial ? 16.8 : 17.15,
-            tilt: 52,
+            zoom: initial ? 16.4 : 17.05,
+            tilt: 50,
             bearing: _heading,
           ),
         ),
-        duration: const Duration(milliseconds: 650),
+        duration: const Duration(milliseconds: 550),
       );
     } catch (e) {
       log('Navigation camera follow failed: $e');
@@ -439,7 +513,8 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
       if (mounted) {
         setState(() {
           _arrived = true;
-          _stepIndex = (_route?.steps.length ?? 1) - 1;
+          final count = _route?.steps.length ?? 0;
+          _stepIndex = count > 0 ? count - 1 : 0;
         });
       }
       return;
@@ -448,8 +523,9 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
     final steps = _route?.steps ?? const <DelegateNavigationStep>[];
     if (steps.isEmpty || _stepIndex >= steps.length) return;
 
-    while (_stepIndex < steps.length - 1) {
-      final step = steps[_stepIndex];
+    var nextIndex = _stepIndex;
+    while (nextIndex < steps.length - 1) {
+      final step = steps[nextIndex];
       final distance = Geolocator.distanceBetween(
         _currentLat!,
         _currentLng!,
@@ -457,10 +533,12 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
         step.location.longitude,
       );
       if (distance > 38) break;
-      _stepIndex++;
+      nextIndex++;
     }
 
-    if (mounted) setState(() {});
+    if (nextIndex != _stepIndex && mounted) {
+      setState(() => _stepIndex = nextIndex);
+    }
   }
 
   String get _instruction {
@@ -468,11 +546,11 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
       return _isArabic ? 'وصلت إلى موقع العميل' : 'You reached the customer';
     }
     if (_routeLoading && _route == null) {
-      return _isArabic ? 'جارٍ حساب أفضل طريق...' : 'Calculating the best route...';
+      return _isArabic ? 'جارٍ تحديد أفضل طريق...' : 'Finding the best route...';
     }
     final steps = _route?.steps ?? const <DelegateNavigationStep>[];
     if (steps.isEmpty) {
-      return _isArabic ? 'اتجه نحو موقع العميل' : 'Head toward the customer';
+      return _isArabic ? 'جارٍ تجهيز الاتجاهات...' : 'Preparing directions...';
     }
     final index = _stepIndex.clamp(0, steps.length - 1);
     return steps[index].instruction(isArabic: _isArabic);
@@ -527,6 +605,10 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
       );
     }
 
+    final initialTarget = _hasCurrentLocation
+        ? LatLng(_currentLat!, _currentLng!)
+        : LatLng(args.lat, args.lng);
+
     return Scaffold(
       backgroundColor: const Color(0xffF7F8FA),
       appBar: CustomAppBar(
@@ -534,7 +616,7 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
         height: 86,
         title: Text(
           _navigationMode
-              ? (_isArabic ? 'الملاحة إلى العميل' : 'Navigate to customer')
+              ? (_isArabic ? 'الملاحة إلى الوجهة' : 'Navigate to destination')
               : AppLocaleKey.location.tr(),
           style: const TextStyle(
             color: _navy,
@@ -549,8 +631,8 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
             child: MapLibreMap(
               styleString: _styleUrl,
               initialCameraPosition: CameraPosition(
-                target: LatLng(args.lat, args.lng),
-                zoom: 16.2,
+                target: initialTarget,
+                zoom: _navigationMode ? 16.4 : 16.2,
                 tilt: _navigationMode ? 48 : 35,
               ),
               onMapCreated: _onMapCreated,
@@ -558,11 +640,6 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
               compassEnabled: false,
               myLocationEnabled: false,
               trackCameraPosition: true,
-              onCameraMove: (_) {
-                if (_navigationMode && _followMode) {
-                  // Keep follow mode unless the user deliberately uses the recenter toggle.
-                }
-              },
             ),
           ),
           if (_navigationMode) ...[
@@ -574,7 +651,7 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
             ),
             PositionedDirectional(
               end: 16,
-              bottom: 148,
+              bottom: 150,
               child: FloatingActionButton.small(
                 heroTag: 'navigationRecenter',
                 backgroundColor: Colors.white,
@@ -583,9 +660,9 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
                 onPressed: () {
                   setState(() => _followMode = true);
                   if (_hasCurrentLocation) {
-                    _followDriver(initial: true);
+                    unawaited(_followDriver(initial: true));
                   } else {
-                    _startNavigationLocation();
+                    unawaited(_startNavigationLocation());
                   }
                 },
                 child: const Icon(Icons.my_location_rounded),
@@ -601,8 +678,13 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
             PositionedDirectional(
               start: 14,
               end: 14,
-              bottom: _navigationMode ? 150 : 22,
-              child: _errorCard(),
+              bottom: _navigationMode ? 152 : 22,
+              child: GestureDetector(
+                onTap: _navigationMode && _hasCurrentLocation
+                    ? () => unawaited(_loadRoute(force: true))
+                    : null,
+                child: _errorCard(),
+              ),
             ),
           if (_navigationMode)
             PositionedDirectional(
@@ -629,7 +711,7 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.96),
+          color: Colors.white.withOpacity(.97),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: _orange.withOpacity(.25)),
           boxShadow: [
@@ -687,10 +769,10 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
             ),
             if (_routeLoading || _locationLoading)
               const SizedBox(
-                width: 20,
-                height: 20,
+                width: 21,
+                height: 21,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2.2,
+                  strokeWidth: 2.3,
                   color: _orange,
                 ),
               ),
@@ -760,7 +842,10 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
                 if (args.orderId != null)
                   Container(
                     margin: const EdgeInsetsDirectional.only(start: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: _orange.withOpacity(.10),
                       borderRadius: BorderRadius.circular(10),
@@ -918,7 +1003,7 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline_rounded, color: _orange, size: 20),
+          const Icon(Icons.refresh_rounded, color: _orange, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
