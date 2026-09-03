@@ -109,52 +109,11 @@ class _GoDriveOpening extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRect(
-      child: FittedBox(
+    return SizedBox.expand(
+      child: Image.asset(
+        'assets/images/0AF7C941-1A25-407F-AF8F-BAB82215FB83.png',
         fit: BoxFit.cover,
         alignment: Alignment.center,
-        child: SizedBox(
-          width: 600,
-          height: 1301,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              _SplashTile('assets/images/go_drive_splash_01.webp', 130),
-              SizedBox(
-                width: 600,
-                height: 130,
-                child: ColoredBox(color: Colors.white),
-              ),
-              _SplashTile('assets/images/go_drive_splash_03.webp', 130),
-              _SplashTile('assets/images/go_drive_splash_04.webp', 130),
-              _SplashTile('assets/images/go_drive_splash_05.webp', 130),
-              _SplashTile('assets/images/go_drive_splash_06.webp', 131),
-              _SplashTile('assets/images/go_drive_splash_07.webp', 130),
-              _SplashTile('assets/images/go_drive_splash_08.webp', 130),
-              _SplashTile('assets/images/go_drive_splash_09.webp', 130),
-              _SplashTile('assets/images/go_drive_splash_10.webp', 130),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SplashTile extends StatelessWidget {
-  const _SplashTile(this.path, this.tileHeight);
-
-  final String path;
-  final double tileHeight;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 600,
-      height: tileHeight,
-      child: Image.asset(
-        path,
-        fit: BoxFit.fill,
         filterQuality: FilterQuality.high,
         gaplessPlayback: true,
         isAntiAlias: true,
