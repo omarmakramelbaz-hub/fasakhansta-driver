@@ -1,17 +1,14 @@
 import 'dart:async';
-import 'dart:developer';
-import 'dart:typed_data';
+import 'dart:math' as math;
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart' as fmap;
 import 'package:geolocator/geolocator.dart';
-import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:latlong2/latlong.dart' as ll;
 
 import '../../../../helpers/hive/hive_methods.dart';
-import '../../../../helpers/locale/app_locale_key.dart';
-import '../../../custom_widgets/custom_app_bar/custom_app_bar.dart';
 import '../service/delegate_navigation_service.dart';
 
 class DeliveryLocationArgs {
@@ -37,41 +34,34 @@ class DeliveryLocationScreen extends StatefulWidget {
   const DeliveryLocationScreen({super.key, this.args});
 
   @override
-  State<DeliveryLocationScreen> createState() =>
-      _DeliveryLocationScreenState();
+  State<DeliveryLocationScreen> createState() => _DeliveryLocationScreenState();
 }
 
 class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
-  static const _styleUrl = 'https://tiles.openfreemap.org/styles/liberty';
   static const _orange = Color(0xffFD7201);
   static const _navy = Color(0xff082A4D);
   static const _softText = Color(0xff7D8490);
-  static const _bikeAsset = 'assets/images/go_motorcycle_marker.png';
-  static const _bikeImageId = 'go-navigation-motorcycle';
+  static const _tileUrl =
+      'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
 
   final DelegateNavigationService _navigationService =
       DelegateNavigationService();
+  final fmap.MapController _mapController = fmap.MapController();
 
-  MapLibreMapController? _mapController;
   StreamSubscription<Position>? _positionSubscription;
-  Circle? _destinationCircle;
-  Circle? _bikePulse;
-  Symbol? _bike;
-  Line? _routeLine;
   DelegateNavigationRoute? _route;
 
   double? _currentLat;
   double? _currentLng;
   double _heading = 0;
   double _speedKmh = 0;
-  bool _styleReady = false;
   bool _locationLoading = false;
   bool _routeLoading = false;
   bool _arrived = false;
   bool _followMode = true;
+  bool _mapReady = false;
   String? _navigationError;
   int _stepIndex = 0;
-  DateTime? _lastRouteAt;
   DateTime? _lastRouteAttemptAt;
   double? _lastRouteLat;
   double? _lastRouteLng;
@@ -80,13 +70,15 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
   bool get _navigationMode => widget.args?.navigationMode == true;
   bool get _hasCurrentLocation => _currentLat != null && _currentLng != null;
 
+  ll.LatLng get _destination {
+    final args = widget.args!;
+    return ll.LatLng(args.lat, args.lng);
+  }
+
   @override
   void initState() {
     super.initState();
 
-    // The delegate location screen already keeps the latest GPS position in
-    // Hive. Seed navigation with it immediately so opening navigation never
-    // waits on a second GPS fix before it can calculate the route.
     final savedLat = HiveMethods.getLat();
     final savedLng = HiveMethods.getLan();
     if (savedLat != null && savedLng != null) {
@@ -96,7 +88,11 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
 
     if (_navigationMode) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_startNavigationLocation());
+        if (!mounted) return;
+        if (_hasCurrentLocation) {
+          unawaited(_loadRoute(force: true));
+        }
+        unawaited(_startNavigationLocation());
       });
     }
   }
@@ -104,81 +100,7 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
   @override
   void dispose() {
     _positionSubscription?.cancel();
-    _mapController?.dispose();
     super.dispose();
-  }
-
-  Future<void> _onMapCreated(MapLibreMapController controller) async {
-    _mapController = controller;
-  }
-
-  Future<void> _onStyleLoaded() async {
-    final args = widget.args;
-    final controller = _mapController;
-    if (args == null || controller == null) return;
-
-    try {
-      _destinationCircle = await controller.addCircle(
-        CircleOptions(
-          geometry: LatLng(args.lat, args.lng),
-          circleRadius: 13,
-          circleColor: '#FD7201',
-          circleOpacity: .98,
-          circleStrokeColor: '#FFFFFF',
-          circleStrokeWidth: 4,
-          circleStrokeOpacity: 1,
-        ),
-      );
-
-      if (_navigationMode) {
-        final data = await rootBundle.load(_bikeAsset);
-        final bytes = Uint8List.sublistView(data);
-        await controller.addImage(_bikeImageId, bytes);
-      }
-
-      _styleReady = true;
-
-      if (_navigationMode) {
-        if (_hasCurrentLocation) {
-          await _syncBike();
-          await _loadRoute(force: true);
-          await _followDriver(initial: true);
-        } else {
-          await _focusDestination();
-        }
-      } else {
-        await _focusDestination();
-      }
-    } catch (e) {
-      log('Navigation map setup failed: $e');
-      if (!mounted) return;
-      setState(() {
-        _navigationError = _isArabic
-            ? 'تعذر تجهيز الخريطة للملاحة.'
-            : 'Could not prepare the navigation map.';
-      });
-    }
-  }
-
-  Future<void> _focusDestination() async {
-    final controller = _mapController;
-    final args = widget.args;
-    if (controller == null || args == null) return;
-
-    try {
-      await controller.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: LatLng(args.lat, args.lng),
-            zoom: 16.2,
-            tilt: 35,
-          ),
-        ),
-        duration: const Duration(milliseconds: 500),
-      );
-    } catch (e) {
-      log('Destination camera failed: $e');
-    }
   }
 
   Future<void> _startNavigationLocation() async {
@@ -206,21 +128,20 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
         throw Exception('Location permission denied');
       }
 
-      // A fresh fix improves accuracy, but navigation no longer depends on it
-      // because the latest saved location is already available immediately.
       try {
         final first = await Geolocator.getCurrentPosition().timeout(
           const Duration(seconds: 8),
         );
         await _handlePosition(first, initial: true);
       } catch (e) {
-        log('Fresh navigation GPS fix unavailable, using saved fix: $e');
+        debugPrint('Fresh navigation GPS unavailable: $e');
         if (!_hasCurrentLocation) rethrow;
+        if (_route == null) unawaited(_loadRoute(force: true));
       }
 
       _startGpsStream();
     } catch (e) {
-      log('Navigation location failed: $e');
+      debugPrint('Navigation location failed: $e');
       if (!mounted) return;
       setState(() {
         _locationLoading = false;
@@ -232,8 +153,7 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
                 ? 'تعذر تحديد موقع المندوب. تأكد من تشغيل GPS والسماح بالموقع.'
                 : 'Could not detect driver location. Enable GPS and location permission.');
       });
-
-      if (_hasCurrentLocation && _styleReady && _route == null) {
+      if (_hasCurrentLocation && _route == null) {
         unawaited(_loadRoute(force: true));
       }
     }
@@ -241,9 +161,8 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
 
   void _startGpsStream() {
     final settings = LocationSettings(
-      accuracy:
-          kIsWeb ? LocationAccuracy.high : LocationAccuracy.bestForNavigation,
-      distanceFilter: 5,
+      accuracy: kIsWeb ? LocationAccuracy.high : LocationAccuracy.bestForNavigation,
+      distanceFilter: kIsWeb ? 10 : 5,
     );
 
     _positionSubscription = Geolocator.getPositionStream(
@@ -251,7 +170,7 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
     ).listen(
       (position) => unawaited(_handlePosition(position)),
       onError: (Object error) {
-        log('Navigation GPS stream failed: $error');
+        debugPrint('Navigation GPS stream failed: $error');
         if (!mounted) return;
         setState(() {
           _navigationError = _isArabic
@@ -262,10 +181,7 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
     );
   }
 
-  Future<void> _handlePosition(
-    Position position, {
-    bool initial = false,
-  }) async {
+  Future<void> _handlePosition(Position position, {bool initial = false}) async {
     if (!mounted) return;
 
     final heading = position.heading.isFinite && position.heading >= 0
@@ -281,85 +197,56 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
       _heading = heading;
       _speedKmh = speed;
       _locationLoading = false;
-      if (_route != null) _navigationError = null;
+      _navigationError = null;
     });
 
     HiveMethods.updateLat(position.latitude);
     HiveMethods.updateLan(position.longitude);
+    _updateArrivalAndStep();
 
-    if (_styleReady) {
-      await _syncBike();
-      _updateArrivalAndStep();
+    if (_followMode) {
+      _moveToDriver(initial: initial);
+    }
 
-      if (_followMode) {
-        await _followDriver(initial: initial);
-      }
-
-      if (!_arrived && _shouldRefreshRoute()) {
-        // Never force here. A failed router must not be hammered on every GPS
-        // update; _loadRoute has a retry throttle.
-        unawaited(_loadRoute());
-      }
+    if (!_arrived && _shouldRefreshRoute()) {
+      unawaited(_loadRoute(force: _route == null));
     }
   }
 
   bool _shouldRefreshRoute() {
-    if (!_hasCurrentLocation) return false;
-    if (_route == null) return true;
-
-    final now = DateTime.now();
-    final elapsed = _lastRouteAt == null
-        ? const Duration(days: 1)
-        : now.difference(_lastRouteAt!);
-
-    final movedFromRouteStart =
-        _lastRouteLat == null || _lastRouteLng == null
-            ? double.infinity
-            : Geolocator.distanceBetween(
-                _lastRouteLat!,
-                _lastRouteLng!,
-                _currentLat!,
-                _currentLng!,
-              );
-
-    double nearestRouteDistance = double.infinity;
-    final geometry = _route?.geometry ?? const <LatLng>[];
-    for (var i = 0; i < geometry.length; i += 3) {
-      final point = geometry[i];
-      final distance = Geolocator.distanceBetween(
-        _currentLat!,
-        _currentLng!,
-        point.latitude,
-        point.longitude,
-      );
-      if (distance < nearestRouteDistance) nearestRouteDistance = distance;
+    if (!_hasCurrentLocation || _routeLoading) return false;
+    if (_route == null) {
+      final last = _lastRouteAttemptAt;
+      return last == null || DateTime.now().difference(last).inSeconds >= 20;
     }
 
-    final offRoute = nearestRouteDistance > 70;
-    final progressed = movedFromRouteStart > 120 && elapsed.inSeconds >= 25;
-    return offRoute || progressed;
+    if (_lastRouteLat == null || _lastRouteLng == null) return true;
+    final moved = Geolocator.distanceBetween(
+      _lastRouteLat!,
+      _lastRouteLng!,
+      _currentLat!,
+      _currentLng!,
+    );
+    final elapsed = _lastRouteAttemptAt == null
+        ? const Duration(minutes: 2)
+        : DateTime.now().difference(_lastRouteAttemptAt!);
+
+    return moved >= 120 && elapsed.inSeconds >= 30;
   }
 
   Future<void> _loadRoute({bool force = false}) async {
     final args = widget.args;
-    if (args == null || !_hasCurrentLocation || _routeLoading || _arrived) {
-      return;
-    }
+    if (args == null || !_hasCurrentLocation || _routeLoading || _arrived) return;
 
     final now = DateTime.now();
     if (!force &&
         _lastRouteAttemptAt != null &&
-        now.difference(_lastRouteAttemptAt!).inSeconds < 12) {
+        now.difference(_lastRouteAttemptAt!).inSeconds < 20) {
       return;
     }
 
     _lastRouteAttemptAt = now;
-    if (mounted) {
-      setState(() {
-        _routeLoading = true;
-        if (_route == null) _navigationError = null;
-      });
-    }
+    if (mounted) setState(() => _routeLoading = true);
 
     try {
       final result = await _navigationService.route(
@@ -369,132 +256,68 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
         toLng: args.lng,
       );
 
-      _lastRouteAt = DateTime.now();
-      _lastRouteLat = _currentLat;
-      _lastRouteLng = _currentLng;
-      _stepIndex = 0;
-      _route = result;
-
-      if (mounted) {
-        setState(() {
-          _routeLoading = false;
-          _navigationError = null;
-        });
-      }
-
-      await _drawRoute(result.geometry);
+      if (!mounted) return;
+      setState(() {
+        _route = result;
+        _routeLoading = false;
+        _navigationError = null;
+        _lastRouteLat = _currentLat;
+        _lastRouteLng = _currentLng;
+        _stepIndex = 0;
+      });
       _updateArrivalAndStep();
+      _showRouteOverview(result);
     } catch (e) {
-      log('Route calculation failed: $e');
+      debugPrint('Route calculation failed: $e');
       if (!mounted) return;
       setState(() {
         _routeLoading = false;
         _navigationError = _isArabic
-            ? 'تعذر تحميل الطريق الآن. اضغط هنا لإعادة المحاولة.'
-            : 'Could not load the route. Tap here to retry.';
+            ? 'تعذر حساب الطريق الآن. اضغط هنا لإعادة المحاولة.'
+            : 'Could not calculate the route. Tap here to retry.';
       });
     }
   }
 
-  Future<void> _drawRoute(List<LatLng> points) async {
-    final controller = _mapController;
-    if (!_styleReady || controller == null || points.length < 2) return;
-
+  void _showRouteOverview(DelegateNavigationRoute route) {
+    if (!_mapReady || !_hasCurrentLocation || !_followMode) return;
     try {
-      if (_routeLine != null) {
-        await controller.removeLine(_routeLine!);
-        _routeLine = null;
-      }
-
-      _routeLine = await controller.addLine(
-        LineOptions(
-          geometry: points,
-          lineColor: '#FD7201',
-          lineWidth: 6.5,
-          lineOpacity: .96,
-        ),
+      final args = widget.args!;
+      final center = ll.LatLng(
+        (_currentLat! + args.lat) / 2,
+        (_currentLng! + args.lng) / 2,
       );
+      final distance = route.distanceMeters;
+      final zoom = distance > 15000
+          ? 10.8
+          : distance > 8000
+              ? 11.8
+              : distance > 4000
+                  ? 12.7
+                  : distance > 2000
+                      ? 13.6
+                      : distance > 900
+                          ? 14.5
+                          : 15.5;
+      _mapController.move(center, zoom);
+
+      Future<void>.delayed(const Duration(milliseconds: 900), () {
+        if (mounted && _followMode) _moveToDriver();
+      });
     } catch (e) {
-      log('Route drawing failed: $e');
-      if (mounted) {
-        setState(() {
-          _navigationError = _isArabic
-              ? 'تم حساب الطريق لكن تعذر رسمه. اضغط هنا لإعادة المحاولة.'
-              : 'Route calculated but could not be drawn. Tap to retry.';
-        });
-      }
+      debugPrint('Route overview failed: $e');
     }
   }
 
-  Future<void> _syncBike() async {
-    final controller = _mapController;
-    if (!_styleReady || controller == null || !_hasCurrentLocation) return;
-
-    final point = LatLng(_currentLat!, _currentLng!);
+  void _moveToDriver({bool initial = false}) {
+    if (!_mapReady || !_hasCurrentLocation) return;
     try {
-      if (_bikePulse == null) {
-        _bikePulse = await controller.addCircle(
-          CircleOptions(
-            geometry: point,
-            circleRadius: 23,
-            circleColor: '#FD7201',
-            circleOpacity: .12,
-            circleStrokeColor: '#FF9B46',
-            circleStrokeWidth: 2,
-            circleStrokeOpacity: .30,
-          ),
-        );
-      } else {
-        await controller.updateCircle(
-          _bikePulse!,
-          CircleOptions(geometry: point),
-        );
-      }
-
-      if (_bike == null) {
-        _bike = await controller.addSymbol(
-          SymbolOptions(
-            geometry: point,
-            iconImage: _bikeImageId,
-            iconSize: .56,
-            iconRotate: _heading,
-            iconAnchor: 'center',
-            zIndex: 20,
-          ),
-          {'type': 'delegate-navigation'},
-        );
-      } else {
-        await controller.updateSymbol(
-          _bike!,
-          SymbolOptions(
-            geometry: point,
-            iconRotate: _heading,
-          ),
-        );
-      }
-    } catch (e) {
-      log('Driver marker update failed: $e');
-    }
-  }
-
-  Future<void> _followDriver({bool initial = false}) async {
-    final controller = _mapController;
-    if (!_styleReady || controller == null || !_hasCurrentLocation) return;
-
-    try {
-      await controller.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: LatLng(_currentLat!, _currentLng!),
-            zoom: initial ? 16.4 : 17.05,
-            tilt: 50,
-            bearing: _heading,
-          ),
-        ),
-        duration: const Duration(milliseconds: 550),
+      _mapController.move(
+        ll.LatLng(_currentLat!, _currentLng!),
+        initial ? 16.0 : 16.5,
       );
     } catch (e) {
-      log('Navigation camera follow failed: $e');
+      debugPrint('Map follow failed: $e');
     }
   }
 
@@ -523,9 +346,9 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
     final steps = _route?.steps ?? const <DelegateNavigationStep>[];
     if (steps.isEmpty || _stepIndex >= steps.length) return;
 
-    var nextIndex = _stepIndex;
-    while (nextIndex < steps.length - 1) {
-      final step = steps[nextIndex];
+    var next = _stepIndex;
+    while (next < steps.length - 1) {
+      final step = steps[next];
       final distance = Geolocator.distanceBetween(
         _currentLat!,
         _currentLng!,
@@ -533,24 +356,19 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
         step.location.longitude,
       );
       if (distance > 38) break;
-      nextIndex++;
+      next++;
     }
-
-    if (nextIndex != _stepIndex && mounted) {
-      setState(() => _stepIndex = nextIndex);
-    }
+    if (next != _stepIndex && mounted) setState(() => _stepIndex = next);
   }
 
   String get _instruction {
-    if (_arrived) {
-      return _isArabic ? 'وصلت إلى موقع العميل' : 'You reached the customer';
-    }
+    if (_arrived) return _isArabic ? 'وصلت إلى موقع العميل' : 'You reached the customer';
     if (_routeLoading && _route == null) {
-      return _isArabic ? 'جارٍ تحديد أفضل طريق...' : 'Finding the best route...';
+      return _isArabic ? 'جارٍ حساب أفضل طريق...' : 'Calculating the best route...';
     }
     final steps = _route?.steps ?? const <DelegateNavigationStep>[];
     if (steps.isEmpty) {
-      return _isArabic ? 'جارٍ تجهيز الاتجاهات...' : 'Preparing directions...';
+      return _isArabic ? 'اتجه نحو موقع العميل' : 'Head toward the customer';
     }
     final index = _stepIndex.clamp(0, steps.length - 1);
     return steps[index].instruction(isArabic: _isArabic);
@@ -594,6 +412,14 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
     return '${args.lat.toStringAsFixed(6)}, ${args.lng.toStringAsFixed(6)}';
   }
 
+  List<ll.LatLng> get _routePoints {
+    final geometry = _route?.geometry ?? const [];
+    if (geometry.isEmpty) return const [];
+    return geometry
+        .map((point) => ll.LatLng(point.latitude, point.longitude))
+        .toList(growable: false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final args = widget.args;
@@ -605,120 +431,161 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
       );
     }
 
-    final initialTarget = _hasCurrentLocation
-        ? LatLng(_currentLat!, _currentLng!)
-        : LatLng(args.lat, args.lng);
-
     return Scaffold(
       backgroundColor: const Color(0xffF7F8FA),
-      appBar: CustomAppBar(
-        context,
-        height: 86,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          onPressed: () => Navigator.maybePop(context),
+          icon: Icon(
+            _isArabic ? Icons.arrow_forward_rounded : Icons.arrow_back_rounded,
+            color: _orange,
+          ),
+        ),
         title: Text(
           _navigationMode
-              ? (_isArabic ? 'الملاحة إلى الوجهة' : 'Navigate to destination')
-              : AppLocaleKey.location.tr(),
+              ? (_isArabic ? 'الملاحة إلى الوجهة' : 'Navigation')
+              : (_isArabic ? 'موقع التسليم' : 'Delivery location'),
           style: const TextStyle(
             color: _navy,
-            fontSize: 21,
+            fontSize: 20,
             fontWeight: FontWeight.w900,
           ),
         ),
       ),
       body: Stack(
         children: [
-          Positioned.fill(
-            child: MapLibreMap(
-              styleString: _styleUrl,
-              initialCameraPosition: CameraPosition(
-                target: initialTarget,
-                zoom: _navigationMode ? 16.4 : 16.2,
-                tilt: _navigationMode ? 48 : 35,
-              ),
-              onMapCreated: _onMapCreated,
-              onStyleLoadedCallback: _onStyleLoaded,
-              compassEnabled: false,
-              myLocationEnabled: false,
-              trackCameraPosition: true,
-            ),
-          ),
-          if (_navigationMode) ...[
+          Positioned.fill(child: _map(args)),
+          if (_navigationMode)
             PositionedDirectional(
               top: 14,
               start: 14,
               end: 14,
-              child: _navigationInstructionCard(),
+              child: _instructionCard(),
             ),
-            PositionedDirectional(
-              end: 16,
-              bottom: 150,
-              child: FloatingActionButton.small(
-                heroTag: 'navigationRecenter',
-                backgroundColor: Colors.white,
-                foregroundColor: _orange,
-                elevation: 5,
-                onPressed: () {
-                  setState(() => _followMode = true);
-                  if (_hasCurrentLocation) {
-                    unawaited(_followDriver(initial: true));
-                  } else {
-                    unawaited(_startNavigationLocation());
-                  }
-                },
-                child: const Icon(Icons.my_location_rounded),
-              ),
-            ),
-          ] else
-            PositionedDirectional(
-              top: 14,
-              start: 14,
-              child: _destinationBadge(),
-            ),
+          PositionedDirectional(
+            end: 16,
+            bottom: _navigationMode ? 154 : 96,
+            child: _recenterButton(),
+          ),
           if (_navigationError != null)
             PositionedDirectional(
               start: 14,
               end: 14,
-              bottom: _navigationMode ? 152 : 22,
-              child: GestureDetector(
-                onTap: _navigationMode && _hasCurrentLocation
-                    ? () => unawaited(_loadRoute(force: true))
-                    : null,
-                child: _errorCard(),
-              ),
+              bottom: _navigationMode ? 154 : 20,
+              child: _errorCard(),
             ),
-          if (_navigationMode)
-            PositionedDirectional(
-              start: 0,
-              end: 0,
-              bottom: 0,
-              child: _navigationBottomCard(args),
-            )
-          else
-            PositionedDirectional(
-              start: 14,
-              end: 14,
-              bottom: 20,
-              child: _destinationInfoCard(args),
-            ),
+          PositionedDirectional(
+            start: 0,
+            end: 0,
+            bottom: 0,
+            child: _navigationMode
+                ? _navigationBottomCard(args)
+                : _destinationInfoCard(args),
+          ),
         ],
       ),
     );
   }
 
-  Widget _navigationInstructionCard() {
+  Widget _map(DeliveryLocationArgs args) {
+    final initialCenter = _hasCurrentLocation && _navigationMode
+        ? ll.LatLng(_currentLat!, _currentLng!)
+        : _destination;
+
+    final markers = <fmap.Marker>[
+      fmap.Marker(
+        point: _destination,
+        width: 52,
+        height: 62,
+        child: const _DestinationMarker(),
+      ),
+    ];
+
+    if (_hasCurrentLocation && _navigationMode) {
+      markers.add(
+        fmap.Marker(
+          point: ll.LatLng(_currentLat!, _currentLng!),
+          width: 74,
+          height: 88,
+          child: _DriverMarker(heading: _heading),
+        ),
+      );
+    }
+
+    return fmap.FlutterMap(
+      mapController: _mapController,
+      options: fmap.MapOptions(
+        initialCenter: initialCenter,
+        initialZoom: _navigationMode ? 15.8 : 16.2,
+        minZoom: 4,
+        maxZoom: 19,
+        onMapReady: () {
+          _mapReady = true;
+          if (_navigationMode && _hasCurrentLocation) {
+            _moveToDriver(initial: true);
+          }
+        },
+      ),
+      children: [
+        fmap.TileLayer(
+          urlTemplate: _tileUrl,
+          userAgentPackageName: 'com.fasakhansta.delegate',
+          maxNativeZoom: 19,
+        ),
+        if (_routePoints.length >= 2)
+          fmap.PolylineLayer(
+            polylines: [
+              fmap.Polyline(
+                points: _routePoints,
+                strokeWidth: 7,
+                color: _orange.withOpacity(.96),
+                borderStrokeWidth: 2.5,
+                borderColor: Colors.white.withOpacity(.92),
+              ),
+            ],
+          ),
+        fmap.MarkerLayer(markers: markers),
+        PositionedDirectional(
+          start: 8,
+          bottom: _navigationMode ? 132 : 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.88),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: const Text(
+              '© OpenStreetMap © CARTO',
+              style: TextStyle(
+                color: Color(0xff606873),
+                fontSize: 8.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _instructionCard() {
     return SafeArea(
       bottom: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(.97),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _orange.withOpacity(.25)),
+          border: Border.all(color: _orange.withOpacity(.22)),
           boxShadow: [
             BoxShadow(
-              color: _navy.withOpacity(.12),
-              blurRadius: 22,
-              offset: const Offset(0, 8),
+              color: _navy.withOpacity(.10),
+              blurRadius: 20,
+              offset: const Offset(0, 7),
             ),
           ],
         ),
@@ -769,10 +636,10 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
             ),
             if (_routeLoading || _locationLoading)
               const SizedBox(
-                width: 21,
-                height: 21,
+                width: 20,
+                height: 20,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2.3,
+                  strokeWidth: 2.2,
                   color: _orange,
                 ),
               ),
@@ -782,9 +649,33 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
     );
   }
 
+  Widget _recenterButton() {
+    return Material(
+      color: Colors.white,
+      elevation: 5,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () {
+          setState(() => _followMode = true);
+          if (_hasCurrentLocation) {
+            _moveToDriver(initial: true);
+          } else {
+            unawaited(_startNavigationLocation());
+          }
+        },
+        child: const SizedBox(
+          width: 52,
+          height: 52,
+          child: Icon(Icons.my_location_rounded, color: _orange, size: 26),
+        ),
+      ),
+    );
+  }
+
   Widget _navigationBottomCard(DeliveryLocationArgs args) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 13, 18, 12),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(.98),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -810,7 +701,7 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
                 _stat(Icons.speed_rounded, '${_speedKmh.round()} كم/س'),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 9),
             Row(
               children: [
                 Container(
@@ -842,10 +733,7 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
                 if (args.orderId != null)
                   Container(
                     margin: const EdgeInsetsDirectional.only(start: 8),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 5,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                     decoration: BoxDecoration(
                       color: _orange.withOpacity(.10),
                       borderRadius: BorderRadius.circular(10),
@@ -871,7 +759,7 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
     return Expanded(
       child: Container(
         height: 43,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 7),
         decoration: BoxDecoration(
           color: const Color(0xffF8F9FB),
           borderRadius: BorderRadius.circular(13),
@@ -900,52 +788,19 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
     );
   }
 
-  Widget _destinationBadge() {
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.95),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: _navy.withOpacity(.08),
-              blurRadius: 12,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.location_on_rounded, color: _orange, size: 18),
-            const SizedBox(width: 5),
-            Text(
-              _isArabic ? 'نقطة التسليم' : 'Delivery point',
-              style: const TextStyle(
-                color: _navy,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _destinationInfoCard(DeliveryLocationArgs args) {
     return Container(
-      padding: const EdgeInsets.all(15),
+      margin: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.97),
+        color: Colors.white.withOpacity(.98),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xffECEEF1)),
         boxShadow: [
           BoxShadow(
-            color: _navy.withOpacity(.09),
-            blurRadius: 20,
-            offset: const Offset(0, 7),
+            color: _navy.withOpacity(.08),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -966,7 +821,7 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  AppLocaleKey.area.tr(),
+                  _isArabic ? 'نقطة التسليم' : 'Delivery point',
                   style: const TextStyle(
                     color: _navy,
                     fontSize: 13,
@@ -994,26 +849,99 @@ class _DeliveryLocationScreenState extends State<DeliveryLocationScreen> {
   }
 
   Widget _errorCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xF9FFF4EA),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: _orange.withOpacity(.32)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.refresh_rounded, color: _orange, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              _navigationError!,
-              style: const TextStyle(
-                color: _navy,
-                fontSize: 11.5,
-                height: 1.35,
-                fontWeight: FontWeight.w600,
+    return GestureDetector(
+      onTap: () {
+        if (_hasCurrentLocation && !_routeLoading) {
+          unawaited(_loadRoute(force: true));
+        } else if (!_hasCurrentLocation) {
+          unawaited(_startNavigationLocation());
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xF9FFF4EA),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: _orange.withOpacity(.32)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.refresh_rounded, color: _orange, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _navigationError!,
+                style: const TextStyle(
+                  color: _navy,
+                  fontSize: 11.5,
+                  height: 1.35,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DestinationMarker extends StatelessWidget {
+  const _DestinationMarker();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          color: const Color(0xffFD7201),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 4),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x33082A4D),
+              blurRadius: 12,
+              offset: Offset(0, 5),
+            ),
+          ],
+        ),
+        child: const Icon(Icons.flag_rounded, color: Colors.white, size: 23),
+      ),
+    );
+  }
+}
+
+class _DriverMarker extends StatelessWidget {
+  final double heading;
+
+  const _DriverMarker({required this.heading});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 62,
+            height: 62,
+            decoration: BoxDecoration(
+              color: const Color(0x24FD7201),
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0x55FD7201), width: 2),
+            ),
+          ),
+          Transform.rotate(
+            angle: heading * math.pi / 180,
+            child: Image.asset(
+              'assets/images/go_motorcycle_marker.png',
+              width: 52,
+              height: 68,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.medium,
             ),
           ),
         ],
