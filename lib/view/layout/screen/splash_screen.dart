@@ -8,7 +8,6 @@ import '../../../../../../helpers/networking/api_helper.dart';
 import '../../../../../../helpers/utils/navigator_methods.dart';
 import '../../../helpers/hive/hive_methods.dart';
 import '../../../helpers/pusher_service/pusher_controller.dart';
-import '../../custom_widgets/api_response_widget/api_response_widget.dart';
 import '../auth/controller/auth_controller.dart';
 import '../auth/screen/login_screen.dart';
 import '../delegate_bottom_nav_bar.dart/screen/delegate_bottom_nav_bar_screen.dart';
@@ -33,29 +32,9 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBody: true,
+    return const Scaffold(
       backgroundColor: Colors.white,
-      body: const SizedBox.expand(child: _GoDriveOpening()),
-      bottomNavigationBar: SizedBox(
-        height: 80,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Consumer<AuthController>(
-            builder: (context, authController, _) {
-              return ApiResponseWidget(
-                loadingWidget: const SizedBox(),
-                apiResponse: authController.profileResponse,
-                onReload: _getData,
-                isEmpty: false,
-                unauthorizedWidget: const SizedBox(),
-                axis: Axis.horizontal,
-                child: const SizedBox(),
-              );
-            },
-          ),
-        ),
-      ),
+      body: SizedBox.expand(child: _GoDriveOpening()),
     );
   }
 
@@ -130,38 +109,31 @@ class _GoDriveOpening extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: Colors.white,
-      child: Center(
-        child: FractionallySizedBox(
-          widthFactor: 0.86,
-          heightFactor: 0.92,
-          child: FittedBox(
-            fit: BoxFit.contain,
-            alignment: Alignment.center,
-            child: SizedBox(
-              width: 600,
-              height: 1301,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  _SplashTile('assets/images/go_drive_splash_01.webp', 130),
-                  SizedBox(
-                    width: 600,
-                    height: 130,
-                    child: ColoredBox(color: Colors.white),
-                  ),
-                  _SplashTile('assets/images/go_drive_splash_03.webp', 130),
-                  _SplashTile('assets/images/go_drive_splash_04.webp', 130),
-                  _SplashTile('assets/images/go_drive_splash_05.webp', 130),
-                  _SplashTile('assets/images/go_drive_splash_06.webp', 131),
-                  _SplashTile('assets/images/go_drive_splash_07.webp', 130),
-                  _SplashTile('assets/images/go_drive_splash_08.webp', 130),
-                  _SplashTile('assets/images/go_drive_splash_09.webp', 130),
-                  _SplashTile('assets/images/go_drive_splash_10.webp', 130),
-                ],
+    return ClipRect(
+      child: FittedBox(
+        fit: BoxFit.cover,
+        alignment: Alignment.center,
+        child: SizedBox(
+          width: 600,
+          height: 1301,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              _SplashTile('assets/images/go_drive_splash_01.webp', 130),
+              SizedBox(
+                width: 600,
+                height: 130,
+                child: ColoredBox(color: Colors.white),
               ),
-            ),
+              _SplashTile('assets/images/go_drive_splash_03.webp', 130),
+              _SplashTile('assets/images/go_drive_splash_04.webp', 130),
+              _SplashTile('assets/images/go_drive_splash_05.webp', 130),
+              _SplashTile('assets/images/go_drive_splash_06.webp', 131),
+              _SplashTile('assets/images/go_drive_splash_07.webp', 130),
+              _SplashTile('assets/images/go_drive_splash_08.webp', 130),
+              _SplashTile('assets/images/go_drive_splash_09.webp', 130),
+              _SplashTile('assets/images/go_drive_splash_10.webp', 130),
+            ],
           ),
         ),
       ),
