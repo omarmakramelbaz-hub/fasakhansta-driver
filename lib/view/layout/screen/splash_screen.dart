@@ -108,7 +108,6 @@ class _SplashScreenState extends State<SplashScreen> {
           )
           .timeout(const Duration(seconds: 10));
     } on TimeoutException {
-      // Never leave users stuck on the splash screen when the API is slow/down.
       HiveMethods.deleteToken();
       _goLogin();
       return;
@@ -131,26 +130,38 @@ class _GoDriveOpening extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRect(
-      child: FittedBox(
-        fit: BoxFit.cover,
-        child: SizedBox(
-          width: 600,
-          height: 1301,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              _SplashTile('assets/images/go_drive_splash_01.webp', 130),
-              SizedBox(width: 600, height: 130, child: ColoredBox(color: Colors.white)),
-              _SplashTile('assets/images/go_drive_splash_03.webp', 130),
-              _SplashTile('assets/images/go_drive_splash_04.webp', 130),
-              _SplashTile('assets/images/go_drive_splash_05.webp', 130),
-              _SplashTile('assets/images/go_drive_splash_06.webp', 131),
-              _SplashTile('assets/images/go_drive_splash_07.webp', 130),
-              _SplashTile('assets/images/go_drive_splash_08.webp', 130),
-              _SplashTile('assets/images/go_drive_splash_09.webp', 130),
-              _SplashTile('assets/images/go_drive_splash_10.webp', 130),
-            ],
+    return ColoredBox(
+      color: Colors.white,
+      child: Center(
+        child: FractionallySizedBox(
+          widthFactor: 0.86,
+          heightFactor: 0.92,
+          child: FittedBox(
+            fit: BoxFit.contain,
+            alignment: Alignment.center,
+            child: SizedBox(
+              width: 600,
+              height: 1301,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  _SplashTile('assets/images/go_drive_splash_01.webp', 130),
+                  SizedBox(
+                    width: 600,
+                    height: 130,
+                    child: ColoredBox(color: Colors.white),
+                  ),
+                  _SplashTile('assets/images/go_drive_splash_03.webp', 130),
+                  _SplashTile('assets/images/go_drive_splash_04.webp', 130),
+                  _SplashTile('assets/images/go_drive_splash_05.webp', 130),
+                  _SplashTile('assets/images/go_drive_splash_06.webp', 131),
+                  _SplashTile('assets/images/go_drive_splash_07.webp', 130),
+                  _SplashTile('assets/images/go_drive_splash_08.webp', 130),
+                  _SplashTile('assets/images/go_drive_splash_09.webp', 130),
+                  _SplashTile('assets/images/go_drive_splash_10.webp', 130),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -174,6 +185,7 @@ class _SplashTile extends StatelessWidget {
         fit: BoxFit.fill,
         filterQuality: FilterQuality.high,
         gaplessPlayback: true,
+        isAntiAlias: true,
       ),
     );
   }
