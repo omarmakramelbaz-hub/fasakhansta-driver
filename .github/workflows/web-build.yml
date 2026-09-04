@@ -38,6 +38,19 @@ jobs:
       - name: Configure Flutter Web platform
         run: flutter create . --platforms web --no-pub
 
+      - name: Prepare fresh Go Drive branding
+        shell: bash
+        run: |
+          set -e
+          cp assets/images/delegate_login_fisher_logo.jpg assets/images/go_drive_brand_v4.jpg
+          sed -i 's#assets/images/delegate_login_fisher_logo.jpg#assets/images/go_drive_brand_v4.jpg#g' \
+            lib/view/layout/screen/splash_screen.dart \
+            lib/view/layout/auth/screen/login_screen.dart \
+            lib/view/layout/auth/screen/regester_screen.dart
+          grep -q 'go_drive_brand_v4.jpg' lib/view/layout/screen/splash_screen.dart
+          grep -q 'go_drive_brand_v4.jpg' lib/view/layout/auth/screen/login_screen.dart
+          grep -q 'go_drive_brand_v4.jpg' lib/view/layout/auth/screen/regester_screen.dart
+
       - name: Build Flutter Web
         run: flutter build web --release --base-href "/fasakhansta-driver/"
 
@@ -53,8 +66,11 @@ jobs:
           index = root / 'index.html'
           bootstrap = root / 'flutter_bootstrap.js'
           main_js = root / 'main.dart.js'
+          logo = root / 'assets' / 'assets' / 'images' / 'go_drive_brand_v4.jpg'
 
-          # Version the compiled app bundle so Safari always loads the current build.
+          if not logo.exists():
+              raise SystemExit('Go Drive branded logo missing from web build')
+
           if main_js.exists() and bootstrap.exists():
               versioned_name = f'main.dart.{build}.js'
               (root / versioned_name).write_bytes(main_js.read_bytes())
@@ -64,24 +80,30 @@ jobs:
 
           html = index.read_text(encoding='utf-8')
           original = '<script src="flutter_bootstrap.js" async></script>'
-
-          # Show the same Go Drive logo immediately, before Flutter paints its first frame,
-          # so the web preview no longer flashes through two blank white screens.
           opening = f'''
           <style>
             html, body {{ margin: 0; width: 100%; height: 100%; background: #fff; }}
             #go-drive-opening {{
-              position: fixed; inset: 0; z-index: 2147483647; background: #fff;
-              display: flex; align-items: center; justify-content: center;
+              position: fixed;
+              inset: 0;
+              z-index: 2147483647;
+              background: #fff;
+              display: flex;
+              align-items: center;
+              justify-content: center;
             }}
-            #go-drive-opening img {{ width: min(72vw, 360px); height: auto; object-fit: contain; }}
+            #go-drive-opening img {{
+              width: min(72vw, 360px);
+              max-height: 48vh;
+              object-fit: contain;
+              display: block;
+            }}
           </style>
           <div id="go-drive-opening">
-            <img src="assets/assets/images/delegate_login_fisher_logo.jpg?build={build}" alt="Go Drive">
+            <img src="assets/assets/images/go_drive_brand_v4.jpg?build={build}" alt="Go Drive">
           </div>
           <script>
           (async function () {{
-            const logoUrl = 'assets/assets/images/delegate_login_fisher_logo.jpg?build={build}';
             try {{
               if ('serviceWorker' in navigator) {{
                 const regs = await navigator.serviceWorker.getRegistrations();
@@ -91,8 +113,6 @@ jobs:
                 const keys = await caches.keys();
                 await Promise.all(keys.map((k) => caches.delete(k)));
               }}
-              // Force Safari to refresh the actual asset URL used by Flutter login/register/splash.
-              await fetch('assets/assets/images/delegate_login_fisher_logo.jpg', {{cache: 'reload'}});
             }} catch (_) {{}}
 
             const script = document.createElement('script');
@@ -100,13 +120,12 @@ jobs:
             script.async = true;
             document.body.appendChild(script);
 
-            // Remove only after Flutter has had time to paint the branded splash beneath it.
             const removeOpening = () => {{
               const el = document.getElementById('go-drive-opening');
               if (el) el.remove();
             }};
             window.addEventListener('flutter-first-frame', removeOpening, {{once: true}});
-            setTimeout(removeOpening, 3500);
+            setTimeout(removeOpening, 4500);
           }})();
           </script>
           '''
