@@ -54,6 +54,23 @@ jobs:
           bootstrap = root / 'flutter_bootstrap.js'
           main_js = root / 'main.dart.js'
 
+          # Give the Go Drive logo a new URL on every build so Safari/GitHub Pages
+          # cannot reuse the old fisherman logo from cache.
+          old_logo_key = 'assets/images/delegate_login_fisher_logo.jpg'
+          logo_dir = root / 'assets' / 'assets' / 'images'
+          old_logo_file = logo_dir / 'delegate_login_fisher_logo.jpg'
+          new_logo_name = f'delegate_go_drive_{build}.jpg'
+          new_logo_key = f'assets/images/{new_logo_name}'
+          new_logo_file = logo_dir / new_logo_name
+
+          if old_logo_file.exists():
+              new_logo_file.write_bytes(old_logo_file.read_bytes())
+
+          if main_js.exists():
+              js = main_js.read_text(encoding='utf-8')
+              js = js.replace(old_logo_key, new_logo_key)
+              main_js.write_text(js, encoding='utf-8')
+
           if main_js.exists() and bootstrap.exists():
               versioned_name = f'main.dart.{build}.js'
               (root / versioned_name).write_bytes(main_js.read_bytes())
