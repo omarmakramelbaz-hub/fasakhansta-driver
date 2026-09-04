@@ -109,15 +109,24 @@ class _GoDriveOpening extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.expand(
-      child: Image.asset(
-        'assets/images/0AF7C941-1A25-407F-AF8F-BAB82215FB83.png',
-        fit: BoxFit.cover,
-        alignment: Alignment.center,
-        filterQuality: FilterQuality.high,
-        gaplessPlayback: true,
-        isAntiAlias: true,
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final logoWidth = (constraints.maxWidth * .72).clamp(240.0, 360.0);
+
+        return ColoredBox(
+          color: Colors.white,
+          child: Center(
+            child: Image.asset(
+              'assets/images/delegate_login_fisher_logo.jpg',
+              width: logoWidth,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+              gaplessPlayback: true,
+              isAntiAlias: true,
+            ),
+          ),
+        );
+      },
     );
   }
 }
