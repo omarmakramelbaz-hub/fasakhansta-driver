@@ -38,25 +38,27 @@ jobs:
       - name: Configure Flutter Web platform
         run: flutter create . --platforms web --no-pub
 
-      - name: Prepare fresh Go Drive branding
+      - name: Restore verified Go Drive logo
         shell: bash
         run: |
-          set -e
-          cp assets/images/delegate_login_fisher_logo.jpg assets/images/go_drive_brand_v4.jpg
-          sed -i 's#assets/images/delegate_login_fisher_logo.jpg#assets/images/go_drive_brand_v4.jpg#g' \
+          set -euo pipefail
+          base64 -d assets/images/go_drive_logo_q75.webp.b64 > assets/images/go_drive_brand_v5.webp
+          test -s assets/images/go_drive_brand_v5.webp
+          file assets/images/go_drive_brand_v5.webp | grep -qi 'webp'
+          sed -i -E 's#assets/images/(delegate_login_fisher_logo\.jpg|go_drive_brand_v4\.jpg|go_drive_brand_v5\.webp)#assets/images/go_drive_brand_v5.webp#g' \
             lib/view/layout/screen/splash_screen.dart \
             lib/view/layout/auth/screen/login_screen.dart \
             lib/view/layout/auth/screen/regester_screen.dart
-          grep -q 'go_drive_brand_v4.jpg' lib/view/layout/screen/splash_screen.dart
-          grep -q 'go_drive_brand_v4.jpg' lib/view/layout/auth/screen/login_screen.dart
-          grep -q 'go_drive_brand_v4.jpg' lib/view/layout/auth/screen/regester_screen.dart
+          grep -q 'go_drive_brand_v5.webp' lib/view/layout/auth/screen/login_screen.dart
+          grep -q 'go_drive_brand_v5.webp' lib/view/layout/auth/screen/regester_screen.dart
 
       - name: Build Flutter Web
         run: flutter build web --release --base-href "/fasakhansta-driver/"
 
-      - name: Force fresh preview and single branded opening
+      - name: Verify built logo and force fresh preview
         shell: bash
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           import os
           from pathlib import Path
@@ -66,42 +68,26 @@ jobs:
           index = root / 'index.html'
           bootstrap = root / 'flutter_bootstrap.js'
           main_js = root / 'main.dart.js'
-          logo = root / 'assets' / 'assets' / 'images' / 'go_drive_brand_v4.jpg'
+          logo = root / 'assets' / 'assets' / 'images' / 'go_drive_brand_v5.webp'
 
-          if not logo.exists():
-              raise SystemExit('Go Drive branded logo missing from web build')
+          if not logo.exists() or logo.stat().st_size < 5000:
+              raise SystemExit('Verified Go Drive logo missing or invalid in web build')
 
           if main_js.exists() and bootstrap.exists():
               versioned_name = f'main.dart.{build}.js'
               (root / versioned_name).write_bytes(main_js.read_bytes())
-              bootstrap_text = bootstrap.read_text(encoding='utf-8')
-              bootstrap_text = bootstrap_text.replace('main.dart.js', versioned_name)
-              bootstrap.write_text(bootstrap_text, encoding='utf-8')
+              text = bootstrap.read_text(encoding='utf-8').replace('main.dart.js', versioned_name)
+              bootstrap.write_text(text, encoding='utf-8')
 
           html = index.read_text(encoding='utf-8')
           original = '<script src="flutter_bootstrap.js" async></script>'
           opening = f'''
           <style>
             html, body {{ margin: 0; width: 100%; height: 100%; background: #fff; }}
-            #go-drive-opening {{
-              position: fixed;
-              inset: 0;
-              z-index: 2147483647;
-              background: #fff;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-            }}
-            #go-drive-opening img {{
-              width: min(72vw, 360px);
-              max-height: 48vh;
-              object-fit: contain;
-              display: block;
-            }}
+            #go-drive-opening {{ position: fixed; inset: 0; z-index: 2147483647; background: #fff; display: flex; align-items: center; justify-content: center; }}
+            #go-drive-opening img {{ width: min(72vw, 360px); max-height: 48vh; object-fit: contain; display: block; }}
           </style>
-          <div id="go-drive-opening">
-            <img src="assets/assets/images/go_drive_brand_v4.jpg?build={build}" alt="Go Drive">
-          </div>
+          <div id="go-drive-opening"><img src="assets/assets/images/go_drive_brand_v5.webp?build={build}" alt="Go Drive"></div>
           <script>
           (async function () {{
             try {{
@@ -114,26 +100,17 @@ jobs:
                 await Promise.all(keys.map((k) => caches.delete(k)));
               }}
             }} catch (_) {{}}
-
             const script = document.createElement('script');
             script.src = 'flutter_bootstrap.js?build={build}';
             script.async = true;
             document.body.appendChild(script);
-
-            const removeOpening = () => {{
-              const el = document.getElementById('go-drive-opening');
-              if (el) el.remove();
-            }};
+            const removeOpening = () => {{ const el = document.getElementById('go-drive-opening'); if (el) el.remove(); }};
             window.addEventListener('flutter-first-frame', removeOpening, {{once: true}});
             setTimeout(removeOpening, 4500);
           }})();
           </script>
           '''
-
-          if original in html:
-              html = html.replace(original, opening)
-          else:
-              html = html.replace('</body>', opening + '\n</body>')
+          html = html.replace(original, opening) if original in html else html.replace('</body>', opening + '\n</body>')
           index.write_text(html, encoding='utf-8')
           PY
 
