@@ -35,7 +35,6 @@ jobs:
           from PIL import Image
           import re
 
-          # Build native splash/icon PNGs from the exact HD Go Drive logo already used by auth screens.
           src = Path('assets/images/go_drive_logo_hd.webp')
           if not src.exists():
               raise SystemExit('Go Drive HD logo is missing')
@@ -53,11 +52,15 @@ jobs:
           make_square('assets/images/go_drive_splash_native.png', 760)
           make_square('assets/images/go_drive_app_icon.png', 820)
 
-          # Make the Flutter opening a single Go Drive screen with a minimum visible duration of 3 seconds.
           splash_path = Path('lib/view/layout/screen/splash_screen.dart')
           text = splash_path.read_text(encoding='utf-8')
           text = text.replace("'assets/images/delegate_login_fisher_logo.jpg'", "'assets/images/go_drive_logo_hd.webp'")
-          text = text.replace("  bool _navigated = false;\n", "  bool _navigated = false;\n  final DateTime _openingStartedAt = DateTime.now();\n")
+          if 'final DateTime _openingStartedAt = DateTime.now();' not in text:
+              text = text.replace(
+                  "  bool _navigated = false;\n",
+                  "  bool _navigated = false;\n  final DateTime _openingStartedAt = DateTime.now();\n",
+                  1,
+              )
           text = text.replace(
               "  void _goLogin() {\n    if (!mounted || _navigated) return;",
               "  Future<void> _goLogin() async {\n    await _waitForOpening();\n    if (!mounted || _navigated) return;",
@@ -69,21 +72,19 @@ jobs:
           if 'Future<void> _waitForOpening()' not in text:
               anchor = "  void _initial() {\n"
               waiter = "  Future<void> _waitForOpening() async {\n    final elapsed = DateTime.now().difference(_openingStartedAt).inMilliseconds;\n    final remainingMs = 3000 - elapsed;\n    if (remainingMs > 0) {\n      await Future.delayed(Duration(milliseconds: remainingMs));\n    }\n  }\n\n"
+              if anchor not in text:
+                  raise SystemExit('Could not locate splash initialization')
               text = text.replace(anchor, waiter + anchor, 1)
           text = text.replace("      Future.delayed(const Duration(milliseconds: 800), _goLogin);", "      _goLogin();")
           text = text.replace("              Future.delayed(const Duration(milliseconds: 500), _goHome);", "              _goHome();")
           text = text.replace("              Future.delayed(const Duration(milliseconds: 250), _goLogin);", "              _goLogin();")
           splash_path.write_text(text, encoding='utf-8')
 
-          # Add generators and configure both native splash and launcher icons with the same logo.
           pubspec = Path('pubspec.yaml')
           p = pubspec.read_text(encoding='utf-8')
-          if 'flutter_native_splash: ^' not in p:
-              p = p.replace(
-                  '  flutter_lints: ^4.0.0\n',
-                  '  flutter_lints: ^4.0.0\n  flutter_native_splash: ^2.4.6\n  flutter_launcher_icons: ^0.14.4\n',
-                  1,
-              )
+          # Keep generators out of project dependencies; this avoids touching the app dependency lockfile.
+          p = re.sub(r'^\s*flutter_native_splash:\s*\^.*\n', '', p, flags=re.M)
+          p = re.sub(r'^\s*flutter_launcher_icons:\s*\^.*\n', '', p, flags=re.M)
           branding = '''\nflutter_native_splash:\n  color: "#FFFFFF"\n  image: assets/images/go_drive_splash_native.png\n  android: true\n  ios: true\n  web: false\n  android_12:\n    color: "#FFFFFF"\n    image: assets/images/go_drive_splash_native.png\n    icon_background_color: "#FFFFFF"\n\nflutter_launcher_icons:\n  android: true\n  ios: true\n  image_path: assets/images/go_drive_app_icon.png\n  min_sdk_android: 21\n  remove_alpha_ios: true\n  web:\n    generate: true\n    image_path: assets/images/go_drive_app_icon.png\n    background_color: "#FFFFFF"\n    theme_color: "#FD7201"\n'''
           p = re.sub(r'\nflutter_native_splash:\n[\s\S]*\Z', '\n' + branding.lstrip('\n'), p)
           pubspec.write_text(p, encoding='utf-8')
@@ -91,14 +92,18 @@ jobs:
 
           dart format lib/view/layout/screen/splash_screen.dart
 
-      - name: Install dependencies
-        run: flutter pub get
+      - name: Install branding generators
+        shell: bash
+        run: |
+          set -euo pipefail
+          dart pub global activate flutter_native_splash 2.4.6
+          dart pub global activate flutter_launcher_icons 0.14.4
 
       - name: Generate native splash
-        run: dart run flutter_native_splash:create
+        run: dart pub global run flutter_native_splash:create
 
       - name: Generate app icons
-        run: dart run flutter_launcher_icons
+        run: dart pub global run flutter_launcher_icons
 
       - name: Verify Go Drive branding
         shell: bash
@@ -118,7 +123,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add pubspec.yaml pubspec.lock \
+          git add pubspec.yaml \
             lib/view/layout/screen/splash_screen.dart \
             assets/images/go_drive_splash_native.png \
             assets/images/go_drive_app_icon.png \
