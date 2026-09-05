@@ -94,7 +94,7 @@ class _LoginScreenState extends State<LoginScreen> with ValidationMixin {
                             SizedBox(height: veryCompact ? 4 : (compact ? 10 : 14)),
                             ClipOval(
                               child: Image.asset(
-                                'assets/images/delegate_login_fisher_logo.jpg',
+                                'assets/images/go_drive_logo_hd.webp',
                                 width: logoSize,
                                 height: logoSize,
                                 fit: BoxFit.cover,
