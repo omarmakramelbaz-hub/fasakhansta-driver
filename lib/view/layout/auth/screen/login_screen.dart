@@ -101,18 +101,7 @@ class _LoginScreenState extends State<LoginScreen> with ValidationMixin {
                                 filterQuality: FilterQuality.high,
                               ),
                             ),
-                            SizedBox(height: veryCompact ? 2 : (compact ? 5 : 7)),
-                            Text(
-                              'Go Drive',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: navy,
-                                fontSize: veryCompact ? 27 : (compact ? 30 : 34),
-                                height: 1.1,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            SizedBox(height: veryCompact ? 4 : 7),
+                            SizedBox(height: veryCompact ? 4 : (compact ? 7 : 10)),
                             Text(
                               _isArabic
                                   ? 'أهلاً بك! يرجى إدخال بيانات حسابك'
