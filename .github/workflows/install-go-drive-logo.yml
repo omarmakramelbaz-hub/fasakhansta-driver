@@ -31,60 +31,44 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          login_path = Path('lib/view/layout/auth/screen/login_screen.dart')
-          register_path = Path('lib/view/layout/auth/screen/regester_screen.dart')
-          login = login_path.read_text(encoding='utf-8')
-          register = register_path.read_text(encoding='utf-8')
-
-          for old in [
+          files = [
+              Path('lib/view/layout/auth/screen/login_screen.dart'),
+              Path('lib/view/layout/auth/screen/regester_screen.dart'),
+          ]
+          old_paths = [
               'assets/images/delegate_login_fisher_logo.jpg',
               'assets/images/go_drive_brand_v4.jpg',
               'assets/images/go_drive_brand_v5.webp',
               'assets/images/go_drive_brand_hd.webp',
-          ]:
-              login = login.replace(old, 'assets/images/go_drive_logo_hd.webp')
-              register = register.replace(old, 'assets/images/go_drive_logo_hd.webp')
+          ]
 
-          login = login.replace("""                            ClipOval(
-                              child: Image.asset(
-                                'assets/images/go_drive_logo_hd.webp',
-                                width: logoSize,
-                                height: logoSize,
-                                fit: BoxFit.cover,
-                                filterQuality: FilterQuality.high,
-                              ),
-                            ),""", """                            Image.asset(
-                              'assets/images/go_drive_logo_hd.webp',
-                              width: logoSize,
-                              height: logoSize,
-                              fit: BoxFit.contain,
-                              filterQuality: FilterQuality.high,
-                            ),""", 1)
-
-          register = register.replace("""                                ClipOval(
-                                  child: Image.asset(
-                                    'assets/images/go_drive_logo_hd.webp',
-                                    width: compact ? 112 : 132,
-                                    height: compact ? 112 : 132,
-                                    fit: BoxFit.cover,
-                                    filterQuality: FilterQuality.high,
-                                  ),
-                                ),""", """                                Image.asset(
-                                  'assets/images/go_drive_logo_hd.webp',
-                                  width: compact ? 112 : 132,
-                                  height: compact ? 112 : 132,
-                                  fit: BoxFit.contain,
-                                  filterQuality: FilterQuality.high,
-                                ),""", 1)
-
-          login_path.write_text(login, encoding='utf-8')
-          register_path.write_text(register, encoding='utf-8')
+          for path in files:
+              text = path.read_text(encoding='utf-8')
+              for old in old_paths:
+                  text = text.replace(old, 'assets/images/go_drive_logo_hd.webp')
+              logo_pos = text.find('assets/images/go_drive_logo_hd.webp')
+              if logo_pos < 0:
+                  raise SystemExit(f'HD logo reference missing in {path}')
+              before = text[:logo_pos]
+              after = text[logo_pos:]
+              clip_pos = before.rfind('ClipOval(')
+              if clip_pos >= 0 and logo_pos - clip_pos < 250:
+                  before = before[:clip_pos] + 'SizedBox(' + before[clip_pos + len('ClipOval('):]
+              cover_pos = after.find('fit: BoxFit.cover')
+              if cover_pos >= 0 and cover_pos < 250:
+                  after = after[:cover_pos] + 'fit: BoxFit.contain' + after[cover_pos + len('fit: BoxFit.cover'):]
+              text = before + after
+              path.write_text(text, encoding='utf-8')
           PY
 
+      - name: Verify auth logo layout
+        shell: bash
+        run: |
+          set -euo pipefail
           grep -q 'assets/images/go_drive_logo_hd.webp' lib/view/layout/auth/screen/login_screen.dart
           grep -q 'assets/images/go_drive_logo_hd.webp' lib/view/layout/auth/screen/regester_screen.dart
-          ! grep -A8 -B2 'go_drive_logo_hd.webp' lib/view/layout/auth/screen/login_screen.dart | grep -q 'BoxFit.cover'
-          ! grep -A8 -B2 'go_drive_logo_hd.webp' lib/view/layout/auth/screen/regester_screen.dart | grep -q 'BoxFit.cover'
+          grep -q 'fit: BoxFit.contain' lib/view/layout/auth/screen/login_screen.dart
+          grep -q 'fit: BoxFit.contain' lib/view/layout/auth/screen/regester_screen.dart
 
       - name: Commit HD logo and auth references
         shell: bash
