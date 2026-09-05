@@ -104,7 +104,7 @@ jobs:
             document.body.appendChild(script);
             const removeOpening = () => {{ const el = document.getElementById('go-drive-opening'); if (el) el.remove(); }};
             window.addEventListener('flutter-first-frame', removeOpening, {{once: true}});
-            setTimeout(removeOpening, 4500);
+            setTimeout(removeOpening, 3000);
           }})();
           </script>
           '''
