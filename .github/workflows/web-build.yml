@@ -49,55 +49,6 @@ jobs:
             lib/view/layout/screen/splash_screen.dart \
             lib/view/layout/auth/screen/login_screen.dart \
             lib/view/layout/auth/screen/regester_screen.dart
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          login_path = Path('lib/view/layout/auth/screen/login_screen.dart')
-          login = login_path.read_text(encoding='utf-8')
-          old_login = """                            ClipOval(
-                              child: Image.asset(
-                                'assets/images/go_drive_brand_v5.webp',
-                                width: logoSize,
-                                height: logoSize,
-                                fit: BoxFit.cover,
-                                filterQuality: FilterQuality.high,
-                              ),
-                            ),"""
-          new_login = """                            Image.asset(
-                              'assets/images/go_drive_brand_v5.webp',
-                              width: logoSize * 1.55,
-                              height: logoSize,
-                              fit: BoxFit.contain,
-                              filterQuality: FilterQuality.high,
-                            ),"""
-          if old_login not in login:
-              raise SystemExit('Login logo block not found')
-          login_path.write_text(login.replace(old_login, new_login, 1), encoding='utf-8')
-
-          register_path = Path('lib/view/layout/auth/screen/regester_screen.dart')
-          register = register_path.read_text(encoding='utf-8')
-          old_register = """                                ClipOval(
-                                  child: Image.asset(
-                                    'assets/images/go_drive_brand_v5.webp',
-                                    width: compact ? 112 : 132,
-                                    height: compact ? 112 : 132,
-                                    fit: BoxFit.cover,
-                                    filterQuality: FilterQuality.high,
-                                  ),
-                                ),"""
-          new_register = """                                Image.asset(
-                                  'assets/images/go_drive_brand_v5.webp',
-                                  width: compact ? 174 : 205,
-                                  height: compact ? 112 : 132,
-                                  fit: BoxFit.contain,
-                                  filterQuality: FilterQuality.high,
-                                ),"""
-          if old_register not in register:
-              raise SystemExit('Register logo block not found')
-          register_path.write_text(register.replace(old_register, new_register, 1), encoding='utf-8')
-          PY
-
           grep -q 'go_drive_brand_v5.webp' lib/view/layout/auth/screen/login_screen.dart
           grep -q 'go_drive_brand_v5.webp' lib/view/layout/auth/screen/regester_screen.dart
 
