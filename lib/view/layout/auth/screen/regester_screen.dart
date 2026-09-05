@@ -165,12 +165,12 @@ class _RegisterAsDeliveryScreenState extends State<RegisterAsDeliveryScreen> wit
                                   ),
                                 ),
                                 SizedBox(height: compact ? 3 : 7),
-                                ClipOval(
+                                SizedBox(
                                   child: Image.asset(
                                     'assets/images/go_drive_logo_hd.webp',
                                     width: compact ? 112 : 132,
                                     height: compact ? 112 : 132,
-                                    fit: BoxFit.cover,
+                                    fit: BoxFit.contain,
                                     filterQuality: FilterQuality.high,
                                   ),
                                 ),

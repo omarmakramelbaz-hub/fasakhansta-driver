@@ -92,12 +92,12 @@ class _LoginScreenState extends State<LoginScreen> with ValidationMixin {
                           mainAxisAlignment: MainAxisAlignment.start,
                           children: [
                             SizedBox(height: veryCompact ? 4 : (compact ? 10 : 14)),
-                            ClipOval(
+                            SizedBox(
                               child: Image.asset(
                                 'assets/images/go_drive_logo_hd.webp',
                                 width: logoSize,
                                 height: logoSize,
-                                fit: BoxFit.cover,
+                                fit: BoxFit.contain,
                                 filterQuality: FilterQuality.high,
                               ),
                             ),
