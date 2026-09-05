@@ -31,30 +31,60 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          targets = [
-              Path('lib/view/layout/auth/screen/login_screen.dart'),
-              Path('lib/view/layout/auth/screen/regester_screen.dart'),
-          ]
-          old_paths = [
+          login_path = Path('lib/view/layout/auth/screen/login_screen.dart')
+          register_path = Path('lib/view/layout/auth/screen/regester_screen.dart')
+          login = login_path.read_text(encoding='utf-8')
+          register = register_path.read_text(encoding='utf-8')
+
+          for old in [
               'assets/images/delegate_login_fisher_logo.jpg',
               'assets/images/go_drive_brand_v4.jpg',
               'assets/images/go_drive_brand_v5.webp',
               'assets/images/go_drive_brand_hd.webp',
-          ]
-          new_path = 'assets/images/go_drive_logo_hd.webp'
+          ]:
+              login = login.replace(old, 'assets/images/go_drive_logo_hd.webp')
+              register = register.replace(old, 'assets/images/go_drive_logo_hd.webp')
 
-          for path in targets:
-              text = path.read_text(encoding='utf-8')
-              original = text
-              for old in old_paths:
-                  text = text.replace(old, new_path)
-              if text == original and new_path not in text:
-                  raise SystemExit(f'Could not wire HD logo in {path}')
-              path.write_text(text, encoding='utf-8')
+          login = login.replace("""                            ClipOval(
+                              child: Image.asset(
+                                'assets/images/go_drive_logo_hd.webp',
+                                width: logoSize,
+                                height: logoSize,
+                                fit: BoxFit.cover,
+                                filterQuality: FilterQuality.high,
+                              ),
+                            ),""", """                            Image.asset(
+                              'assets/images/go_drive_logo_hd.webp',
+                              width: logoSize,
+                              height: logoSize,
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.high,
+                            ),""", 1)
+
+          register = register.replace("""                                ClipOval(
+                                  child: Image.asset(
+                                    'assets/images/go_drive_logo_hd.webp',
+                                    width: compact ? 112 : 132,
+                                    height: compact ? 112 : 132,
+                                    fit: BoxFit.cover,
+                                    filterQuality: FilterQuality.high,
+                                  ),
+                                ),""", """                                Image.asset(
+                                  'assets/images/go_drive_logo_hd.webp',
+                                  width: compact ? 112 : 132,
+                                  height: compact ? 112 : 132,
+                                  fit: BoxFit.contain,
+                                  filterQuality: FilterQuality.high,
+                                ),""", 1)
+
+          login_path.write_text(login, encoding='utf-8')
+          register_path.write_text(register, encoding='utf-8')
           PY
 
           grep -q 'assets/images/go_drive_logo_hd.webp' lib/view/layout/auth/screen/login_screen.dart
           grep -q 'assets/images/go_drive_logo_hd.webp' lib/view/layout/auth/screen/regester_screen.dart
+          ! grep -A8 -B2 'go_drive_logo_hd.webp' lib/view/layout/auth/screen/login_screen.dart | grep -q 'BoxFit.cover'
+          ! grep -A8 -B2 'go_drive_logo_hd.webp' lib/view/layout/auth/screen/regester_screen.dart | grep -q 'BoxFit.cover'
 
       - name: Commit HD logo and auth references
         shell: bash
@@ -62,13 +92,10 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            assets/images/go_drive_logo_hd.webp \
-            lib/view/layout/auth/screen/login_screen.dart \
-            lib/view/layout/auth/screen/regester_screen.dart
+          git add assets/images/go_drive_logo_hd.webp lib/view/layout/auth/screen/login_screen.dart lib/view/layout/auth/screen/regester_screen.dart
           if git diff --cached --quiet; then
             echo "HD logo already installed"
             exit 0
           fi
-          git commit -m "Install HD Go Drive logo on login and register"
+          git commit -m "Show HD Go Drive logo without crop"
           git push
