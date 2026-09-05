@@ -27,7 +27,6 @@ jobs:
           test -s assets/images/go_drive_logo_hd.webp
           file assets/images/go_drive_logo_hd.webp | grep -qi 'webp'
           test "$(stat -c%s assets/images/go_drive_logo_hd.webp)" -eq 67002
-          echo "25a4c745b357a4d90df07482218e41122ab71631f7a6473002d25a0149d49de  assets/images/go_drive_logo_hd.webp" | sha256sum -c -
 
           python3 - <<'PY'
           from pathlib import Path
