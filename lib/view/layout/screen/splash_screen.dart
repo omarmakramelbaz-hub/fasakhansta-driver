@@ -23,6 +23,7 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   bool _navigated = false;
+  final DateTime _openingStartedAt = DateTime.now();
 
   @override
   void initState() {
@@ -38,13 +39,15 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
-  void _goLogin() {
+  Future<void> _goLogin() async {
+    await _waitForOpening();
     if (!mounted || _navigated) return;
     _navigated = true;
     NavigatorMethods.pushNamedAndRemoveUntil(context, LoginScreen.routeName);
   }
 
-  void _goHome() {
+  Future<void> _goHome() async {
+    await _waitForOpening();
     if (!mounted || _navigated) return;
     _navigated = true;
     NavigatorMethods.pushNamedAndRemoveUntil(
@@ -53,12 +56,20 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
+  Future<void> _waitForOpening() async {
+    final elapsed = DateTime.now().difference(_openingStartedAt).inMilliseconds;
+    final remainingMs = 3000 - elapsed;
+    if (remainingMs > 0) {
+      await Future.delayed(Duration(milliseconds: remainingMs));
+    }
+  }
+
   void _initial() {
     if (HiveMethods.getToken() != null) {
       context.read<AuthController>().initialProfile();
       _getData();
     } else {
-      Future.delayed(const Duration(milliseconds: 800), _goLogin);
+      _goLogin();
     }
   }
 
@@ -71,18 +82,18 @@ class _SplashScreenState extends State<SplashScreen> {
             onHaveId: (id, token) {
               if (!kIsWeb) {
                 context.read<PusherController>().initPusher(
-                      channelName: 'private-user.$id',
-                      userId: id,
-                      token: token,
-                    );
+                  channelName: 'private-user.$id',
+                  userId: id,
+                  token: token,
+                );
               }
             },
             onSuccess: () {
-              Future.delayed(const Duration(milliseconds: 500), _goHome);
+              _goHome();
             },
             onUnauthenticated: () {
               HiveMethods.deleteToken();
-              Future.delayed(const Duration(milliseconds: 250), _goLogin);
+              _goLogin();
             },
           )
           .timeout(const Duration(seconds: 10));
@@ -117,7 +128,7 @@ class _GoDriveOpening extends StatelessWidget {
           color: Colors.white,
           child: Center(
             child: Image.asset(
-              'assets/images/delegate_login_fisher_logo.jpg',
+              'assets/images/go_drive_logo_hd.webp',
               width: logoWidth,
               fit: BoxFit.contain,
               filterQuality: FilterQuality.high,

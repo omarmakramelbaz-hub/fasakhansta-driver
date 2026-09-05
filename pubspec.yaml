@@ -71,7 +71,6 @@ dependencies:
   # defer_pointer: ^0.0.2
   # timeline_tile: ^2.0.0
 #  change_app_package_name: ^1.4.0
-#  flutter_native_splash: ^2.4.1
   pusher_channels_flutter: ^2.4.0
 
 
@@ -115,12 +114,24 @@ flutter:
 
 
 flutter_native_splash:
-  color: "#e85504"
-  image: assets/images/transparent.png
-  android_12:
-    color: "#e85504"
-    image: assets/images/transparent.png
+  color: "#FFFFFF"
+  image: assets/images/go_drive_splash_native.png
   android: true
   ios: true
-  color_android: "#e85504"
-  color_ios: "#e85504"
+  web: false
+  android_12:
+    color: "#FFFFFF"
+    image: assets/images/go_drive_splash_native.png
+    icon_background_color: "#FFFFFF"
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/images/go_drive_app_icon.png
+  min_sdk_android: 21
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: assets/images/go_drive_app_icon.png
+    background_color: "#FFFFFF"
+    theme_color: "#FD7201"
