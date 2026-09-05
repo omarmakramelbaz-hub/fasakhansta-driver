@@ -18,27 +18,58 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Rebuild HD Go Drive logo
+      - name: Rebuild and wire HD Go Drive logo
         shell: bash
         run: |
           set -euo pipefail
-          cat tool/go_drive_logo_hd_chunks/*.b64 > /tmp/go_drive_logo.b64
+          cat tool/go_drive_logo_hd_chunks/0{1..7}.b64 | tr -d '\n\r' > /tmp/go_drive_logo.b64
           base64 -d /tmp/go_drive_logo.b64 > assets/images/go_drive_logo_hd.webp
           test -s assets/images/go_drive_logo_hd.webp
           file assets/images/go_drive_logo_hd.webp | grep -qi 'webp'
           test "$(stat -c%s assets/images/go_drive_logo_hd.webp)" -eq 67002
           echo "25a4c745b357a4d90df07482218e41122ab71631f7a6473002d25a0149d49de  assets/images/go_drive_logo_hd.webp" | sha256sum -c -
 
-      - name: Commit HD logo
+          python3 - <<'PY'
+          from pathlib import Path
+
+          targets = [
+              Path('lib/view/layout/auth/screen/login_screen.dart'),
+              Path('lib/view/layout/auth/screen/regester_screen.dart'),
+          ]
+          old_paths = [
+              'assets/images/delegate_login_fisher_logo.jpg',
+              'assets/images/go_drive_brand_v4.jpg',
+              'assets/images/go_drive_brand_v5.webp',
+              'assets/images/go_drive_brand_hd.webp',
+          ]
+          new_path = 'assets/images/go_drive_logo_hd.webp'
+
+          for path in targets:
+              text = path.read_text(encoding='utf-8')
+              original = text
+              for old in old_paths:
+                  text = text.replace(old, new_path)
+              if text == original and new_path not in text:
+                  raise SystemExit(f'Could not wire HD logo in {path}')
+              path.write_text(text, encoding='utf-8')
+          PY
+
+          grep -q 'assets/images/go_drive_logo_hd.webp' lib/view/layout/auth/screen/login_screen.dart
+          grep -q 'assets/images/go_drive_logo_hd.webp' lib/view/layout/auth/screen/regester_screen.dart
+
+      - name: Commit HD logo and auth references
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add assets/images/go_drive_logo_hd.webp
+          git add \
+            assets/images/go_drive_logo_hd.webp \
+            lib/view/layout/auth/screen/login_screen.dart \
+            lib/view/layout/auth/screen/regester_screen.dart
           if git diff --cached --quiet; then
-            echo "Logo already present"
+            echo "HD logo already installed"
             exit 0
           fi
-          git commit -m "Add HD Go Drive logo asset"
+          git commit -m "Install HD Go Drive logo on login and register"
           git push
