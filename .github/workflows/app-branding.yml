@@ -44,9 +44,7 @@ jobs:
               canvas = Image.new('RGB', (1024, 1024), 'white')
               work = logo.copy()
               work.thumbnail((inner_size, inner_size), Image.Resampling.LANCZOS)
-              x = (1024 - work.width) // 2
-              y = (1024 - work.height) // 2
-              canvas.paste(work, (x, y))
+              canvas.paste(work, ((1024 - work.width) // 2, (1024 - work.height) // 2))
               canvas.save(path, format='PNG', optimize=True)
 
           make_square('assets/images/go_drive_splash_native.png', 760)
@@ -82,9 +80,14 @@ jobs:
 
           pubspec = Path('pubspec.yaml')
           p = pubspec.read_text(encoding='utf-8')
-          # Keep generators out of project dependencies; this avoids touching the app dependency lockfile.
-          p = re.sub(r'^\s*flutter_native_splash:\s*\^.*\n', '', p, flags=re.M)
-          p = re.sub(r'^\s*flutter_launcher_icons:\s*\^.*\n', '', p, flags=re.M)
+          # Remove any old branding generator declarations/comments, then add temporary dev dependencies.
+          p = re.sub(r'^\s*#?\s*flutter_native_splash:\s*\^.*\n', '', p, flags=re.M)
+          p = re.sub(r'^\s*#?\s*flutter_launcher_icons:\s*\^.*\n', '', p, flags=re.M)
+          p = p.replace(
+              '  flutter_lints: ^4.0.0\n',
+              '  flutter_lints: ^4.0.0\n  flutter_native_splash: ^2.4.6\n  flutter_launcher_icons: ^0.14.4\n',
+              1,
+          )
           branding = '''\nflutter_native_splash:\n  color: "#FFFFFF"\n  image: assets/images/go_drive_splash_native.png\n  android: true\n  ios: true\n  web: false\n  android_12:\n    color: "#FFFFFF"\n    image: assets/images/go_drive_splash_native.png\n    icon_background_color: "#FFFFFF"\n\nflutter_launcher_icons:\n  android: true\n  ios: true\n  image_path: assets/images/go_drive_app_icon.png\n  min_sdk_android: 21\n  remove_alpha_ios: true\n  web:\n    generate: true\n    image_path: assets/images/go_drive_app_icon.png\n    background_color: "#FFFFFF"\n    theme_color: "#FD7201"\n'''
           p = re.sub(r'\nflutter_native_splash:\n[\s\S]*\Z', '\n' + branding.lstrip('\n'), p)
           pubspec.write_text(p, encoding='utf-8')
@@ -92,18 +95,29 @@ jobs:
 
           dart format lib/view/layout/screen/splash_screen.dart
 
-      - name: Install branding generators
+      - name: Install temporary generator dependencies
+        run: flutter pub get
+
+      - name: Generate native splash
+        run: dart run flutter_native_splash:create
+
+      - name: Generate app icons
+        run: dart run flutter_launcher_icons
+
+      - name: Clean temporary generator dependencies
         shell: bash
         run: |
           set -euo pipefail
-          dart pub global activate flutter_native_splash 2.4.6
-          dart pub global activate flutter_launcher_icons 0.14.4
-
-      - name: Generate native splash
-        run: dart pub global run flutter_native_splash:create
-
-      - name: Generate app icons
-        run: dart pub global run flutter_launcher_icons
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          pth = Path('pubspec.yaml')
+          p = pth.read_text(encoding='utf-8')
+          p = re.sub(r'^\s*flutter_native_splash:\s*\^.*\n', '', p, flags=re.M)
+          p = re.sub(r'^\s*flutter_launcher_icons:\s*\^.*\n', '', p, flags=re.M)
+          pth.write_text(p, encoding='utf-8')
+          PY
+          git checkout -- pubspec.lock analysis_options.yaml || true
 
       - name: Verify Go Drive branding
         shell: bash
@@ -111,6 +125,8 @@ jobs:
           set -euo pipefail
           grep -q "go_drive_logo_hd.webp" lib/view/layout/screen/splash_screen.dart
           grep -q "remainingMs = 3000" lib/view/layout/screen/splash_screen.dart
+          grep -q 'color: "#FFFFFF"' pubspec.yaml
+          grep -q 'image_path: assets/images/go_drive_app_icon.png' pubspec.yaml
           test -s assets/images/go_drive_splash_native.png
           test -s assets/images/go_drive_app_icon.png
           test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
