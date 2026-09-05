@@ -38,24 +38,26 @@ jobs:
       - name: Configure Flutter Web platform
         run: flutter create . --platforms web --no-pub
 
-      - name: Restore verified Go Drive logo
+      - name: Restore HD Go Drive logo
         shell: bash
         run: |
           set -euo pipefail
-          base64 -d assets/images/go_drive_logo_q75.webp.b64 > assets/images/go_drive_brand_v5.webp
-          test -s assets/images/go_drive_brand_v5.webp
-          file assets/images/go_drive_brand_v5.webp | grep -qi 'webp'
-          sed -i -E 's#assets/images/(delegate_login_fisher_logo\.jpg|go_drive_brand_v4\.jpg|go_drive_brand_v5\.webp)#assets/images/go_drive_brand_v5.webp#g' \
+          cat tool/go_drive_logo_hd_chunks/0{1..7}.b64 | tr -d '\n\r' | base64 -d > assets/images/go_drive_brand_hd.webp
+          test -s assets/images/go_drive_brand_hd.webp
+          file assets/images/go_drive_brand_hd.webp | grep -qi 'webp'
+          size=$(stat -c%s assets/images/go_drive_brand_hd.webp)
+          test "$size" -gt 60000
+          sed -i -E 's#assets/images/(delegate_login_fisher_logo\.jpg|go_drive_brand_v4\.jpg|go_drive_brand_v5\.webp|go_drive_brand_hd\.webp)#assets/images/go_drive_brand_hd.webp#g' \
             lib/view/layout/screen/splash_screen.dart \
             lib/view/layout/auth/screen/login_screen.dart \
             lib/view/layout/auth/screen/regester_screen.dart
-          grep -q 'go_drive_brand_v5.webp' lib/view/layout/auth/screen/login_screen.dart
-          grep -q 'go_drive_brand_v5.webp' lib/view/layout/auth/screen/regester_screen.dart
+          grep -q 'go_drive_brand_hd.webp' lib/view/layout/auth/screen/login_screen.dart
+          grep -q 'go_drive_brand_hd.webp' lib/view/layout/auth/screen/regester_screen.dart
 
       - name: Build Flutter Web
         run: flutter build web --release --base-href "/fasakhansta-driver/"
 
-      - name: Verify built logo and force fresh preview
+      - name: Verify HD logo and force fresh preview
         shell: bash
         run: |
           set -euo pipefail
@@ -68,10 +70,10 @@ jobs:
           index = root / 'index.html'
           bootstrap = root / 'flutter_bootstrap.js'
           main_js = root / 'main.dart.js'
-          logo = root / 'assets' / 'assets' / 'images' / 'go_drive_brand_v5.webp'
+          logo = root / 'assets' / 'assets' / 'images' / 'go_drive_brand_hd.webp'
 
-          if not logo.exists() or logo.stat().st_size < 5000:
-              raise SystemExit('Verified Go Drive logo missing or invalid in web build')
+          if not logo.exists() or logo.stat().st_size < 60000:
+              raise SystemExit('HD Go Drive logo missing or invalid in web build')
 
           if main_js.exists() and bootstrap.exists():
               versioned_name = f'main.dart.{build}.js'
@@ -87,7 +89,7 @@ jobs:
             #go-drive-opening {{ position: fixed; inset: 0; z-index: 2147483647; background: #fff; display: flex; align-items: center; justify-content: center; }}
             #go-drive-opening img {{ width: min(72vw, 360px); max-height: 48vh; object-fit: contain; display: block; }}
           </style>
-          <div id="go-drive-opening"><img src="assets/assets/images/go_drive_brand_v5.webp?build={build}" alt="Go Drive"></div>
+          <div id="go-drive-opening"><img src="assets/assets/images/go_drive_brand_hd.webp?build={build}" alt="Go Drive"></div>
           <script>
           (async function () {{
             try {{
