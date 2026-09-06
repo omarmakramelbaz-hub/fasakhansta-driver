@@ -30,6 +30,36 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Patch Android build compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          settings = Path('android/settings.gradle')
+          s = settings.read_text(encoding='utf-8')
+          s = s.replace('id "com.android.application" version "8.7.0" apply false',
+                        'id "com.android.application" version "8.9.1" apply false')
+          settings.write_text(s, encoding='utf-8')
+
+          wrapper = Path('android/gradle/wrapper/gradle-wrapper.properties')
+          w = wrapper.read_text(encoding='utf-8')
+          w = w.replace('gradle-8.10.2-all.zip', 'gradle-8.14.3-all.zip')
+          wrapper.write_text(w, encoding='utf-8')
+
+          app = Path('android/app/build.gradle')
+          a = app.read_text(encoding='utf-8')
+          a = a.replace('compileSdk = 35', 'compileSdk = 36')
+          a = a.replace('buildToolsVersion "23.0.1"\n', '')
+          a = a.replace('ndkVersion "27.0.12077973"', 'ndkVersion "28.2.13676358"')
+          app.write_text(a, encoding='utf-8')
+          PY
+          grep -q 'version "8.9.1"' android/settings.gradle
+          grep -q 'gradle-8.14.3-all.zip' android/gradle/wrapper/gradle-wrapper.properties
+          grep -q 'compileSdk = 36' android/app/build.gradle
+          grep -q '28.2.13676358' android/app/build.gradle
+
       - name: Install Dependencies
         run: flutter pub get
 
@@ -49,6 +79,7 @@ jobs:
           set -euo pipefail
           test -s build/app/outputs/flutter-apk/app-release.apk
           ls -lh build/app/outputs/flutter-apk/app-release.apk
+          sha256sum build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
