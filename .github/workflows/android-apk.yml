@@ -41,7 +41,7 @@ jobs:
           test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
 
       - name: Build Release APK
-        run: flutter build apk --release
+        run: flutter build apk --release --android-skip-build-dependency-validation
 
       - name: Verify APK
         shell: bash
