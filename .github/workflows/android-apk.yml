@@ -41,6 +41,8 @@ jobs:
           s = settings.read_text(encoding='utf-8')
           s = s.replace('id "com.android.application" version "8.7.0" apply false',
                         'id "com.android.application" version "8.9.1" apply false')
+          s = s.replace('id "org.jetbrains.kotlin.android" version "1.8.22" apply false',
+                        'id "org.jetbrains.kotlin.android" version "2.3.0" apply false')
           settings.write_text(s, encoding='utf-8')
 
           wrapper = Path('android/gradle/wrapper/gradle-wrapper.properties')
@@ -56,6 +58,7 @@ jobs:
           app.write_text(a, encoding='utf-8')
           PY
           grep -q 'version "8.9.1"' android/settings.gradle
+          grep -q 'version "2.3.0"' android/settings.gradle
           grep -q 'gradle-8.14.3-all.zip' android/gradle/wrapper/gradle-wrapper.properties
           grep -q 'compileSdk = 36' android/app/build.gradle
           grep -q '28.2.13676358' android/app/build.gradle
