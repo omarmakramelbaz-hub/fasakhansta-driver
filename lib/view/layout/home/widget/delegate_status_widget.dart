@@ -44,96 +44,90 @@ class _DelegateStatusWidgetState extends State<DelegateStatusWidget> {
   @override
   Widget build(BuildContext context) {
     const navy = Color(0xff082A4D);
+    final active = selectedStatus == DelegateStatus.active;
 
     return ChangeNotifierProvider(
       create: (_) => DelegateBottomNavBarController(),
       child: Consumer<DelegateBottomNavBarController>(
         builder: (context, controller, _) {
-          final active = selectedStatus == DelegateStatus.active;
           return Container(
-            padding: const EdgeInsets.all(18),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xffECEEF1)),
-              boxShadow: [
-                BoxShadow(
-                  color: navy.withOpacity(.07),
-                  blurRadius: 22,
-                  offset: const Offset(0, 9),
-                ),
-              ],
+              color: const Color(0xffFCFDFE),
+              borderRadius: BorderRadius.circular(21),
+              border: Border.all(color: const Color(0xffE8EDF2)),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: active ? const Color(0xffEAF8F2) : const Color(0xffFFF0E3),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        active ? Icons.delivery_dining_rounded : Icons.pause_circle_outline_rounded,
-                        color: active ? const Color(0xff16A36A) : const Color(0xffFD7201),
-                        size: 23,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            AppLocaleKey.delegateStatus.tr(),
-                            style: const TextStyle(color: navy, fontSize: 17, fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            active
-                                ? (context.locale.languageCode == 'ar' ? 'أنت متاح لاستقبال الطلبات' : 'You are available for orders')
-                                : (context.locale.languageCode == 'ar' ? 'أنت غير متاح حالياً' : 'You are currently unavailable'),
-                            style: const TextStyle(
-                              color: Color(0xff7D8490),
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xffF3F5F7),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
+                Expanded(
                   child: Row(
                     children: [
-                      Expanded(
-                        child: _StatusButton(
-                          label: AppLocaleKey.active.tr(),
-                          selected: selectedStatus == DelegateStatus.active,
-                          active: true,
-                          onTap: () => _changeStatus(DelegateStatus.active, controller),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: active ? const Color(0xffE8F9F1) : const Color(0xffFFF0E3),
+                        ),
+                        alignment: Alignment.center,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: active ? const Color(0xff15A869) : const Color(0xffFD7201),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (active ? const Color(0xff15A869) : const Color(0xffFD7201)).withOpacity(.24),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 11),
                       Expanded(
-                        child: _StatusButton(
-                          label: AppLocaleKey.inactive.tr(),
-                          selected: selectedStatus == DelegateStatus.inactive,
-                          active: false,
-                          onTap: () => _changeStatus(DelegateStatus.inactive, controller),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              AppLocaleKey.delegateStatus.tr(),
+                              style: const TextStyle(color: navy, fontSize: 16, fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              active
+                                  ? (context.locale.languageCode == 'ar'
+                                      ? 'أنت متاح لاستقبال الطلبات'
+                                      : 'You are available for orders')
+                                  : (context.locale.languageCode == 'ar'
+                                      ? 'أنت غير متاح حالياً'
+                                      : 'You are currently unavailable'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xff7D8490),
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                _PremiumStatusToggle(
+                  active: active,
+                  activeLabel: AppLocaleKey.active.tr(),
+                  inactiveLabel: AppLocaleKey.inactive.tr(),
+                  onTap: () => _changeStatus(
+                    active ? DelegateStatus.inactive : DelegateStatus.active,
+                    controller,
                   ),
                 ),
               ],
@@ -154,17 +148,17 @@ class _DelegateStatusWidgetState extends State<DelegateStatusWidget> {
   }
 }
 
-class _StatusButton extends StatelessWidget {
-  const _StatusButton({
-    required this.label,
-    required this.selected,
+class _PremiumStatusToggle extends StatelessWidget {
+  const _PremiumStatusToggle({
     required this.active,
+    required this.activeLabel,
+    required this.inactiveLabel,
     required this.onTap,
   });
 
-  final String label;
-  final bool selected;
   final bool active;
+  final String activeLabel;
+  final String inactiveLabel;
   final VoidCallback onTap;
 
   @override
@@ -173,40 +167,78 @@ class _StatusButton extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(24),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 190),
-          height: 44,
-          alignment: Alignment.center,
+          duration: const Duration(milliseconds: 230),
+          curve: Curves.easeOutCubic,
+          width: 108,
+          height: 46,
           decoration: BoxDecoration(
-            gradient: selected
-                ? LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: active
-                        ? const [Color(0xff20B97A), Color(0xff159663)]
-                        : const [Color(0xffFF8A08), Color(0xffFF6500)],
+            gradient: active
+                ? const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xff20BE7C), Color(0xff139B63)],
                   )
-                : null,
-            color: selected ? null : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: selected
+                : const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xffE7EBEF), Color(0xffDCE2E8)],
+                  ),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: active
                 ? [
                     BoxShadow(
-                      color: (active ? const Color(0xff16A36A) : const Color(0xffFD7201)).withOpacity(.18),
-                      blurRadius: 12,
-                      offset: const Offset(0, 5),
+                      color: const Color(0xff16A36A).withOpacity(.22),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
                     ),
                   ]
                 : null,
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? Colors.white : const Color(0xff7D8490),
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-            ),
+          child: Stack(
+            children: [
+              Align(
+                alignment: active ? Alignment.centerLeft : Alignment.centerRight,
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: active ? 15 : 8,
+                    right: active ? 8 : 11,
+                  ),
+                  child: Text(
+                    active ? activeLabel : inactiveLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: active ? Colors.white : const Color(0xff69717C),
+                      fontSize: active ? 13 : 10.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+              AnimatedAlign(
+                duration: const Duration(milliseconds: 230),
+                curve: Curves.easeOutCubic,
+                alignment: active ? Alignment.centerRight : Alignment.centerLeft,
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  margin: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(.12),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
