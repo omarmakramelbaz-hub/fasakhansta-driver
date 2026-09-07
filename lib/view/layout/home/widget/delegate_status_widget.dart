@@ -29,10 +29,10 @@ class _DelegateStatusWidgetState extends State<DelegateStatusWidget> {
 
   void _syncStatus() {
     if (!mounted) return;
-    final delegateStatus = context.read<AuthController>().profile?.delegateStatus;
-    if (delegateStatus == null) return;
-    final next = delegateStatus == 'active' ? DelegateStatus.active : DelegateStatus.inactive;
-    if (selectedStatus != next) setState(() => selectedStatus = next);
+    final status = context.read<AuthController>().profile?.delegateStatus;
+    if (status == null) return;
+    final next = status == 'active' ? DelegateStatus.active : DelegateStatus.inactive;
+    if (next != selectedStatus) setState(() => selectedStatus = next);
   }
 
   @override
@@ -45,89 +45,94 @@ class _DelegateStatusWidgetState extends State<DelegateStatusWidget> {
   Widget build(BuildContext context) {
     const navy = Color(0xff082A4D);
     final active = selectedStatus == DelegateStatus.active;
-
     return ChangeNotifierProvider(
       create: (_) => DelegateBottomNavBarController(),
       child: Consumer<DelegateBottomNavBarController>(
         builder: (context, controller, _) {
           return Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
               color: const Color(0xffFCFDFE),
-              borderRadius: BorderRadius.circular(21),
-              border: Border.all(color: const Color(0xffE8EDF2)),
+              borderRadius: BorderRadius.circular(17),
+              border: Border.all(color: const Color(0xffE7ECF1)),
             ),
             child: Row(
               children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: active ? const Color(0xffE8F9F1) : const Color(0xffFFF0E3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Container(
+                    width: 11,
+                    height: 11,
+                    decoration: BoxDecoration(
+                      color: active ? const Color(0xff15A869) : const Color(0xffFD7201),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: Row(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: active ? const Color(0xffE8F9F1) : const Color(0xffFFF0E3),
-                        ),
-                        alignment: Alignment.center,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 220),
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: active ? const Color(0xff15A869) : const Color(0xffFD7201),
-                            boxShadow: [
-                              BoxShadow(
-                                color: (active ? const Color(0xff15A869) : const Color(0xffFD7201)).withOpacity(.24),
-                                blurRadius: 8,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 11),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              AppLocaleKey.delegateStatus.tr(),
-                              style: const TextStyle(color: navy, fontSize: 16, fontWeight: FontWeight.w900),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              active
-                                  ? (context.locale.languageCode == 'ar'
-                                      ? 'أنت متاح لاستقبال الطلبات'
-                                      : 'You are available for orders')
-                                  : (context.locale.languageCode == 'ar'
-                                      ? 'أنت غير متاح حالياً'
-                                      : 'You are currently unavailable'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Color(0xff7D8490),
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
+                      Text(AppLocaleKey.delegateStatus.tr(), style: const TextStyle(color: navy, fontSize: 13.5, fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 1),
+                      Text(
+                        active
+                            ? (context.locale.languageCode == 'ar' ? 'أنت متاح لاستقبال الطلبات' : 'Available for orders')
+                            : (context.locale.languageCode == 'ar' ? 'أنت غير متاح حالياً' : 'Currently unavailable'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Color(0xff7D8490), fontSize: 8.8, fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
-                _PremiumStatusToggle(
-                  active: active,
-                  activeLabel: AppLocaleKey.active.tr(),
-                  inactiveLabel: AppLocaleKey.inactive.tr(),
-                  onTap: () => _changeStatus(
-                    active ? DelegateStatus.inactive : DelegateStatus.active,
-                    controller,
+                const SizedBox(width: 7),
+                InkWell(
+                  onTap: () => _changeStatus(active ? DelegateStatus.inactive : DelegateStatus.active, controller),
+                  borderRadius: BorderRadius.circular(20),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    width: 92,
+                    height: 36,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      gradient: active
+                          ? const LinearGradient(colors: [Color(0xff20BE7C), Color(0xff139B63)])
+                          : const LinearGradient(colors: [Color(0xffE7EBEF), Color(0xffDCE2E8)]),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Stack(
+                      children: [
+                        Align(
+                          alignment: active ? Alignment.centerLeft : Alignment.centerRight,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Text(
+                              active ? AppLocaleKey.active.tr() : AppLocaleKey.inactive.tr(),
+                              style: TextStyle(color: active ? Colors.white : const Color(0xff69717C), fontSize: 11, fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                        ),
+                        AnimatedAlign(
+                          duration: const Duration(milliseconds: 220),
+                          alignment: active ? Alignment.centerRight : Alignment.centerLeft,
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -144,104 +149,6 @@ class _DelegateStatusWidgetState extends State<DelegateStatusWidget> {
     controller.changeStatusOnline(
       connected: status == DelegateStatus.active ? 'active' : 'inactive',
       onSuccess: () => context.read<AuthController>().getProfile(),
-    );
-  }
-}
-
-class _PremiumStatusToggle extends StatelessWidget {
-  const _PremiumStatusToggle({
-    required this.active,
-    required this.activeLabel,
-    required this.inactiveLabel,
-    required this.onTap,
-  });
-
-  final bool active;
-  final String activeLabel;
-  final String inactiveLabel;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 230),
-          curve: Curves.easeOutCubic,
-          width: 108,
-          height: 46,
-          decoration: BoxDecoration(
-            gradient: active
-                ? const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xff20BE7C), Color(0xff139B63)],
-                  )
-                : const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xffE7EBEF), Color(0xffDCE2E8)],
-                  ),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: active
-                ? [
-                    BoxShadow(
-                      color: const Color(0xff16A36A).withOpacity(.22),
-                      blurRadius: 14,
-                      offset: const Offset(0, 6),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Stack(
-            children: [
-              Align(
-                alignment: active ? Alignment.centerLeft : Alignment.centerRight,
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    left: active ? 15 : 8,
-                    right: active ? 8 : 11,
-                  ),
-                  child: Text(
-                    active ? activeLabel : inactiveLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: active ? Colors.white : const Color(0xff69717C),
-                      fontSize: active ? 13 : 10.5,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ),
-              AnimatedAlign(
-                duration: const Duration(milliseconds: 230),
-                curve: Curves.easeOutCubic,
-                alignment: active ? Alignment.centerRight : Alignment.centerLeft,
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  margin: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(.12),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
