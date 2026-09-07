@@ -100,119 +100,121 @@ class _DelegateBottomNavBarScreenState extends State<DelegateBottomNavBarScreen>
             canPop: controller.screenIndex == 0,
             onPopInvoked: controller.onWillPop,
             child: Scaffold(
-              backgroundColor: const Color(0xffF8F9FB),
+              backgroundColor: const Color(0xffF5F7FA),
               extendBody: true,
               resizeToAvoidBottomInset: false,
-              appBar: PreferredSize(
-                preferredSize: const Size.fromHeight(88),
-                child: SafeArea(
-                  bottom: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    child: Material(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(22),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(22),
-                        onTap: () => NavigatorMethods.pushNamed(context, DelegateLocationScreen.routeName),
-                        child: Container(
-                          height: 70,
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          decoration: BoxDecoration(
+              appBar: controller.screenIndex == 0
+                  ? null
+                  : PreferredSize(
+                      preferredSize: const Size.fromHeight(88),
+                      child: SafeArea(
+                        bottom: false,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                          child: Material(
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(22),
-                            border: Border.all(color: const Color(0xffECEEF1)),
-                            gradient: const LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [Color(0xfffff8f2), Colors.white],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: navy.withOpacity(.07),
-                                blurRadius: 22,
-                                offset: const Offset(0, 9),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 44,
-                                height: 44,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(22),
+                              onTap: () => NavigatorMethods.pushNamed(context, DelegateLocationScreen.routeName),
+                              child: Container(
+                                height: 70,
+                                padding: const EdgeInsets.symmetric(horizontal: 14),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xffFFF0E3),
-                                  borderRadius: BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(22),
+                                  border: Border.all(color: const Color(0xffECEEF1)),
+                                  gradient: const LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [Color(0xfffff8f2), Colors.white],
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: navy.withOpacity(.07),
+                                      blurRadius: 22,
+                                      offset: const Offset(0, 9),
+                                    ),
+                                  ],
                                 ),
-                                child: const Icon(
-                                  Icons.location_on_rounded,
-                                  color: Color(0xffFD7201),
-                                  size: 24,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                child: Row(
                                   children: [
-                                    Text(
-                                      AppLocaleKey.address.tr(),
-                                      style: const TextStyle(
-                                        color: Color(0xff7D8490),
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.w600,
+                                    Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xffFFF0E3),
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: const Icon(
+                                        Icons.location_on_rounded,
+                                        color: Color(0xffFD7201),
+                                        size: 24,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      context.watch<AuthController>().profile?.areaTitle ?? '',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: navy,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w800,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            AppLocaleKey.address.tr(),
+                                            style: const TextStyle(
+                                              color: Color(0xff7D8490),
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            context.watch<AuthController>().profile?.areaTitle ?? '',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: navy,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      width: 34,
+                                      height: 34,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xffF7F8FA),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        context.locale.languageCode == 'ar'
+                                            ? Icons.chevron_left_rounded
+                                            : Icons.chevron_right_rounded,
+                                        color: const Color(0xffFD7201),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xffF7F8FA),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Icon(
-                                  context.locale.languageCode == 'ar'
-                                      ? Icons.chevron_left_rounded
-                                      : Icons.chevron_right_rounded,
-                                  color: const Color(0xffFD7201),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-              ),
               body: IndexedStack(index: controller.screenIndex, children: pages),
               bottomNavigationBar: SafeArea(
-                minimum: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                minimum: const EdgeInsets.fromLTRB(12, 0, 12, 9),
                 child: Container(
-                  height: 76,
+                  height: 82,
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(26),
-                    border: Border.all(color: const Color(0xffECEEF1)),
+                    borderRadius: BorderRadius.circular(29),
+                    border: Border.all(color: const Color(0xffE8ECF1)),
                     boxShadow: [
                       BoxShadow(
-                        color: navy.withOpacity(.12),
-                        blurRadius: 30,
-                        offset: const Offset(0, 12),
+                        color: navy.withOpacity(.13),
+                        blurRadius: 32,
+                        offset: const Offset(0, 13),
                       ),
                     ],
                   ),
@@ -376,40 +378,51 @@ class _NavItem extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(22),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 3),
+            padding: const EdgeInsets.fromLTRB(3, 7, 3, 4),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 AnimatedContainer(
-                  duration: const Duration(milliseconds: 190),
-                  width: 42,
-                  height: 31,
+                  duration: const Duration(milliseconds: 210),
+                  curve: Curves.easeOutCubic,
+                  width: 47,
+                  height: 35,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: selected ? const Color(0xffFFF0E3) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(13),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: SvgPicture.asset(
                     selected ? activeIcon : inactiveIcon,
-                    width: 22,
-                    height: 22,
+                    width: 23,
+                    height: 23,
                     colorFilter: ColorFilter.mode(
-                      selected ? AppColor.mainAppColor(context) : const Color(0xff9AA0AA),
+                      selected ? const Color(0xffFD7201) : const Color(0xff929AA5),
                       BlendMode.srcIn,
                     ),
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: selected ? const Color(0xff082A4D) : const Color(0xff8B929D),
-                    fontSize: 11.5,
-                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    fontSize: 11,
+                    fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 210),
+                  width: selected ? 30 : 0,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: const Color(0xffFD7201),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
               ],
