@@ -34,13 +34,13 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final authController = context.read<AuthController>();
-      authController.getProfile().then((_) {
+      final auth = context.read<AuthController>();
+      auth.getProfile().then((_) {
         if (!mounted) return;
         setState(() {
-          balance = authController.profile?.balance;
-          minWallet = authController.profile?.minWallet;
-          minWalletDisabled = authController.profile?.minWalletDisabled;
+          balance = auth.profile?.balance;
+          minWallet = auth.profile?.minWallet;
+          minWalletDisabled = auth.profile?.minWalletDisabled;
         });
       });
     });
@@ -50,24 +50,21 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
 
   void _handleWalletUpdate(PusherEvent event) {
     try {
-      final jsonData = jsonDecode(event.data) as Map<String, dynamic>;
-      log('Wallet updated: $jsonData');
-      final amount = jsonData['user_balance']?.toString() ?? '0';
-      pusherWalletAmount = num.parse(amount).toStringAsFixed(2);
-      if (mounted) {
-        context.read<AuthController>().getProfile().then((_) {
-          if (!mounted) return;
-          setState(() {
-            balance = context.read<AuthController>().profile?.balance;
-            minWallet = context.read<AuthController>().profile?.minWallet;
-            minWalletDisabled = context.read<AuthController>().profile?.minWalletDisabled;
-          });
+      final data = jsonDecode(event.data) as Map<String, dynamic>;
+      pusherWalletAmount = num.parse(data['user_balance']?.toString() ?? '0').toStringAsFixed(2);
+      if (!mounted) return;
+      context.read<AuthController>().getProfile().then((_) {
+        if (!mounted) return;
+        setState(() {
+          balance = context.read<AuthController>().profile?.balance;
+          minWallet = context.read<AuthController>().profile?.minWallet;
+          minWalletDisabled = context.read<AuthController>().profile?.minWalletDisabled;
         });
-        setState(() {});
-      }
-    } catch (e, stackTrace) {
-      log('Error handling Pusher event: $e');
-      log('Stack trace: $stackTrace');
+      });
+      setState(() {});
+    } catch (e, s) {
+      log('Wallet update error: $e');
+      log('$s');
     }
   }
 
@@ -82,170 +79,97 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
   @override
   Widget build(BuildContext context) {
     const navy = Color(0xff082A4D);
-    const orange = Color(0xffFD7201);
-
     return Column(
       children: [
         Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: () => NavigatorMethods.pushNamed(context, WalletScreen.routeName),
-            borderRadius: BorderRadius.circular(27),
+            borderRadius: BorderRadius.circular(22),
             child: Ink(
               width: double.infinity,
-              height: 182,
+              height: 118,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(27),
+                borderRadius: BorderRadius.circular(22),
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [Color(0xff0B3A64), navy],
                 ),
-                boxShadow: [
-                  BoxShadow(color: navy.withOpacity(.21), blurRadius: 26, offset: const Offset(0, 12)),
-                ],
+                boxShadow: [BoxShadow(color: navy.withOpacity(.18), blurRadius: 18, offset: const Offset(0, 8))],
               ),
               child: Stack(
                 children: [
                   Positioned(
-                    left: -52,
-                    top: -82,
-                    child: Container(
-                      width: 210,
-                      height: 210,
-                      decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(.035)),
-                    ),
+                    right: -40,
+                    bottom: -60,
+                    child: Container(width: 140, height: 140, decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xff2F80ED).withOpacity(.08))),
                   ),
                   Positioned(
-                    right: -36,
-                    bottom: -70,
-                    child: Container(
-                      width: 160,
-                      height: 160,
-                      decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xff2F80ED).withOpacity(.08)),
+                    left: 15,
+                    top: 17,
+                    child: Image.asset(
+                      AppImages.walletImage,
+                      width: 76,
+                      height: 66,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 58),
                     ),
                   ),
                   Positioned(
                     left: 15,
-                    top: 22,
-                    child: Image.asset(
-                      AppImages.walletImage,
-                      width: 91,
-                      height: 86,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 76,
-                        height: 76,
-                        decoration: BoxDecoration(color: orange, borderRadius: BorderRadius.circular(22)),
-                        child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 38),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 18,
-                    bottom: 19,
+                    bottom: 11,
                     child: Container(
-                      height: 42,
-                      padding: const EdgeInsets.symmetric(horizontal: 15),
+                      height: 30,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(.04),
-                        borderRadius: BorderRadius.circular(15),
-                        border: Border.all(color: Colors.white.withOpacity(.28)),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withOpacity(.27)),
                       ),
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            context.locale.languageCode == 'ar' ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            _t('عرض المحفظة', 'View wallet'),
-                            style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w800),
-                          ),
+                          Icon(context.locale.languageCode == 'ar' ? Icons.chevron_left_rounded : Icons.chevron_right_rounded, color: Colors.white, size: 17),
+                          const SizedBox(width: 3),
+                          Text(_t('عرض المحفظة', 'View wallet'), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
                         ],
                       ),
                     ),
                   ),
                   PositionedDirectional(
-                    end: 18,
-                    top: 17,
-                    bottom: 16,
+                    end: 16,
+                    top: 12,
+                    bottom: 10,
                     child: SizedBox(
-                      width: 205,
+                      width: 185,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.account_balance_wallet_outlined, color: Colors.white, size: 19),
-                              const SizedBox(width: 7),
-                              Text(
-                                _t('محفظتي', 'My wallet'),
-                                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
-                              ),
+                              const Icon(Icons.account_balance_wallet_outlined, color: Colors.white, size: 17),
+                              const SizedBox(width: 6),
+                              Text(_t('محفظتي', 'My wallet'), style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900)),
                             ],
                           ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Icon(Icons.arrow_outward_rounded, color: Colors.white.withOpacity(.58), size: 16),
-                              const SizedBox(width: 5),
-                              Text(
-                                AppLocaleKey.myCurrentBalance.tr(),
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(.73),
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 5),
+                          const SizedBox(height: 6),
+                          Text(AppLocaleKey.myCurrentBalance.tr(), style: TextStyle(color: Colors.white.withOpacity(.7), fontSize: 9.5, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 2),
                           balance == null
-                              ? const CustomShimmer(
-                                  height: 31,
-                                  width: 122,
-                                  radius: 8,
-                                  shimmerColor: Color(0xffFF8A08),
-                                )
+                              ? const CustomShimmer(height: 23, width: 100, radius: 7, shimmerColor: Color(0xffFF8A08))
                               : FittedBox(
                                   fit: BoxFit.scaleDown,
                                   alignment: AlignmentDirectional.centerStart,
                                   child: Text(
-                                    AppLocaleKey.pound.tr().replaceAll(
-                                      '{}',
-                                      pusherWalletAmount ?? balance?.toStringAsFixed(0) ?? '0',
-                                    ),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 31,
-                                      height: 1.12,
-                                      fontWeight: FontWeight.w900,
-                                    ),
+                                    AppLocaleKey.pound.tr().replaceAll('{}', pusherWalletAmount ?? balance?.toStringAsFixed(0) ?? '0'),
+                                    style: const TextStyle(color: Colors.white, fontSize: 27, height: 1, fontWeight: FontWeight.w900),
                                   ),
                                 ),
                           const Spacer(),
-                          Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(.08),
-                                borderRadius: BorderRadius.circular(11),
-                                border: Border.all(color: Colors.white.withOpacity(.12)),
-                              ),
-                              child: Text(
-                                _t('المحفظة الإلكترونية', 'Digital wallet'),
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(.82),
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                            decoration: BoxDecoration(color: Colors.white.withOpacity(.08), borderRadius: BorderRadius.circular(9), border: Border.all(color: Colors.white.withOpacity(.10))),
+                            child: Text(_t('المحفظة الإلكترونية', 'Digital wallet'), style: TextStyle(color: Colors.white.withOpacity(.82), fontSize: 8.7, fontWeight: FontWeight.w700)),
                           ),
                         ],
                       ),
@@ -258,55 +182,32 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
         ),
         if (balance != null && minWallet != null && minWalletDisabled != null) ...[
           if (balance! >= minWalletDisabled! && balance! <= minWallet!) ...[
-            const SizedBox(height: 12),
-            _buildAlertContainer(context, AppLocaleKey.pleaseChargeYourBalance.tr(args: [minWallet!.toString()])),
+            const SizedBox(height: 6),
+            _alert(context, AppLocaleKey.pleaseChargeYourBalance.tr(args: [minWallet!.toString()])),
           ],
           if (balance! < minWalletDisabled!) ...[
-            const SizedBox(height: 12),
-            _buildAlertContainer(context, AppLocaleKey.yourAccountIsCurrentlySuspended.tr(args: [minWallet!.toString()])),
+            const SizedBox(height: 6),
+            _alert(context, AppLocaleKey.yourAccountIsCurrentlySuspended.tr(args: [minWallet!.toString()])),
           ],
         ],
       ],
     );
   }
 
-  Widget _buildAlertContainer(BuildContext context, String message) {
+  Widget _alert(BuildContext context, String message) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () => Navigator.pushNamed(context, WalletScreen.routeName),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            color: AppColor.ffebbcColor(context),
-            border: Border.all(color: const Color(0xffF6D98A)),
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: AppColor.ffebbcColor(context), border: Border.all(color: const Color(0xffF6D98A))),
           child: Row(
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(.85),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const CustomImage(path: AppImages.infoIcon, type: ImageType.svg),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  message,
-                  style: const TextStyle(
-                    color: Color(0xff66511F),
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    height: 1.45,
-                  ),
-                ),
-              ),
+              Container(width: 28, height: 28, padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.white.withOpacity(.85), borderRadius: BorderRadius.circular(9)), child: const CustomImage(path: AppImages.infoIcon, type: ImageType.svg)),
+              const SizedBox(width: 8),
+              Expanded(child: Text(message, style: const TextStyle(color: Color(0xff66511F), fontSize: 9.5, fontWeight: FontWeight.w600, height: 1.3))),
             ],
           ),
         ),
