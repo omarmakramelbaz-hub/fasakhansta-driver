@@ -34,13 +34,10 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
   late PusherController _pusherController;
 
   static const _navy = Color(0xff082A4D);
-  static const _navyLight = Color(0xff123F6B);
   static const _orange = Color(0xffFD7201);
-  static const _softText = Color(0xff7D8490);
-
-  bool get _isArabic => context.locale.languageCode == 'ar';
-
-  String _t(String ar, String en) => _isArabic ? ar : en;
+  static const _soft = Color(0xff7D8490);
+  bool get _ar => context.locale.languageCode == 'ar';
+  String _t(String ar, String en) => _ar ? ar : en;
 
   Future<void> _refreshData() async {
     final controller = context.read<HomeDelegateController>();
@@ -57,32 +54,30 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _refreshData());
     _pusherController = context.read<PusherController>();
-    _pusherController.addEventListener('delegate.updated', _handleDelegateUpdated);
+    _pusherController.addEventListener('delegate.updated', _onPusher);
   }
 
-  void _handleDelegateUpdated(PusherEvent event) {
+  void _onPusher(PusherEvent event) {
     try {
-      final data = json.decode(event.data) as Map<String, dynamic>;
-      log('Event received: ${event.eventName}, Data: $data');
-      if (!mounted || data['order_id'] == null) return;
-      _refreshData();
-    } catch (e, stackTrace) {
-      log('Error handling Pusher event: $e');
-      log('Stack trace: $stackTrace');
+      json.decode(event.data);
+      if (mounted) _refreshData();
+    } catch (e, s) {
+      log('Home pusher error: $e');
+      log('$s');
     }
   }
 
   @override
   void dispose() {
-    _pusherController.removeEventListener('delegate.updated', _handleDelegateUpdated);
+    _pusherController.removeEventListener('delegate.updated', _onPusher);
     super.dispose();
   }
 
   String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
-    if (parts.isEmpty) return 'GO';
-    if (parts.length == 1) return parts.first.characters.first.toUpperCase();
-    return '${parts.first.characters.first}${parts[1].characters.first}'.toUpperCase();
+    final p = name.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+    if (p.isEmpty) return 'GO';
+    if (p.length == 1) return p.first.characters.first.toUpperCase();
+    return '${p.first.characters.first}${p[1].characters.first}'.toUpperCase();
   }
 
   @override
@@ -92,46 +87,130 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
       body: Consumer<HomeDelegateController>(
         builder: (context, controller, _) {
           final profile = context.watch<AuthController>().profile;
-          final name = profile?.name?.trim().isNotEmpty == true
-              ? profile!.name!.trim()
-              : _t('المندوب', 'Driver');
-          final area = profile?.areaTitle?.trim().isNotEmpty == true
-              ? profile!.areaTitle!.trim()
-              : _t('موقعك الحالي', 'Current location');
-          final currentOrder = controller.currentDelegateHomeOrders.isNotEmpty
-              ? controller.currentDelegateHomeOrders.first
-              : null;
+          final name = profile?.name?.trim().isNotEmpty == true ? profile!.name!.trim() : _t('المندوب', 'Driver');
+          final area = profile?.areaTitle?.trim().isNotEmpty == true ? profile!.areaTitle!.trim() : _t('موقعك الحالي', 'Current location');
+          final currentOrder = controller.currentDelegateHomeOrders.isNotEmpty ? controller.currentDelegateHomeOrders.first : null;
 
-          return RefreshIndicator(
-            color: _orange,
-            onRefresh: _refreshData,
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-              child: Column(
+          return LayoutBuilder(
+            builder: (context, c) {
+              return RefreshIndicator(
+                color: _orange,
+                onRefresh: _refreshData,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: SizedBox(
+                    width: c.maxWidth,
+                    height: c.maxHeight,
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      alignment: Alignment.topCenter,
+                      child: SizedBox(
+                        width: 390,
+                        height: 790,
+                        child: Column(
+                          children: [
+                            _hero(area),
+                            Transform.translate(
+                              offset: const Offset(0, -20),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                child: Column(
+                                  children: [
+                                    _profile(name),
+                                    const SizedBox(height: 13),
+                                    _sectionTitle(
+                                      _t('طلبات اليوم', "Today's orders"),
+                                      _t('عرض الكل', 'View all'),
+                                      () => context.read<DelegateBottomNavBarController>().updateIndex(1),
+                                    ),
+                                    const SizedBox(height: 7),
+                                    _stats(controller),
+                                    const SizedBox(height: 10),
+                                    _currentOrder(currentOrder),
+                                    const SizedBox(height: 10),
+                                    const MyCurrentBalanceWidget(),
+                                    const SizedBox(height: 10),
+                                    _quickActions(),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _hero(String area) {
+    return SizedBox(
+      height: 154,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            'assets/images/delegateCover.png',
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(color: const Color(0xff0B3A64)),
+          ),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [Color(0xff062B50), Color(0xE80A3A65), Color(0xA30A3A65)],
+              ),
+            ),
+          ),
+          Positioned(
+            right: 13,
+            bottom: -2,
+            child: Opacity(
+              opacity: .26,
+              child: SvgPicture.asset(AppImages.darkMotorCycle, width: 125),
+            ),
+          ),
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(15, 7, 15, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _heroHeader(area),
-                  Transform.translate(
-                    offset: const Offset(0, -36),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
+                  _brandWordmark(),
+                  const Spacer(),
+                  _location(area),
+                  const SizedBox(width: 9),
+                  InkWell(
+                    onTap: () => context.read<DelegateBottomNavBarController>().updateIndex(2),
+                    borderRadius: BorderRadius.circular(30),
+                    child: SizedBox(
+                      width: 36,
+                      height: 48,
+                      child: Stack(
+                        alignment: Alignment.center,
                         children: [
-                          _profileCard(name),
-                          const SizedBox(height: 22),
-                          _sectionTitle(
-                            title: _t('طلبات اليوم', "Today's orders"),
-                            action: _t('عرض الكل', 'View all'),
-                            onTap: () => context.read<DelegateBottomNavBarController>().updateIndex(1),
+                          const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 29),
+                          Positioned(
+                            right: 0,
+                            top: 4,
+                            child: Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: _orange,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 1.5),
+                              ),
+                            ),
                           ),
-                          const SizedBox(height: 12),
-                          _todayStats(controller),
-                          const SizedBox(height: 18),
-                          _currentOrderCard(currentOrder),
-                          const SizedBox(height: 18),
-                          const MyCurrentBalanceWidget(),
-                          const SizedBox(height: 22),
-                          _quickActions(),
-                          const SizedBox(height: 116),
                         ],
                       ),
                     ),
@@ -139,508 +218,281 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
                 ],
               ),
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
 
-  Widget _heroHeader(String area) {
-    final logo = SizedBox(
-      width: 102,
+  Widget _brandWordmark() {
+    return SizedBox(
+      width: 92,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Image.asset(
-            'assets/images/go_drive_logo_hd.webp',
-            width: 100,
-            height: 58,
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Text(
-              'GO\nDRIVE',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 23,
-                height: .82,
-                fontWeight: FontWeight.w900,
-                fontStyle: FontStyle.italic,
+          Row(
+            children: [
+              Column(
+                children: List.generate(
+                  3,
+                  (i) => Container(
+                    width: 22 - (i * 4),
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 3),
+                    decoration: BoxDecoration(
+                      color: _orange,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 3),
+              const Text('GO', style: TextStyle(color: Colors.white, fontSize: 29, height: .9, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
+            ],
           ),
+          const Text('DRIVE', style: TextStyle(color: Colors.white, fontSize: 20, height: .95, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
           const SizedBox(height: 3),
-          Text(
-            _t('معك في كل طريق', 'With you all the way'),
-            maxLines: 1,
-            style: TextStyle(
-              color: Colors.white.withOpacity(.88),
-              fontSize: 10.5,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-
-    final location = Expanded(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => NavigatorMethods.pushNamed(context, DelegateLocationScreen.routeName),
-          borderRadius: BorderRadius.circular(20),
-          child: Ink(
-            height: 66,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.11),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withOpacity(.10)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: const Color(0xff0B3157).withOpacity(.84),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.location_on_outlined, color: Colors.white, size: 21),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _t('موقعك الحالي', 'Current location'),
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(.72),
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        area,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w900),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.keyboard_arrow_down_rounded, color: _orange, size: 22),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-
-    final bell = GestureDetector(
-      onTap: () => context.read<DelegateBottomNavBarController>().updateIndex(2),
-      child: SizedBox(
-        width: 42,
-        height: 48,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 30),
-            Positioned(
-              right: 2,
-              top: 3,
-              child: Container(
-                width: 11,
-                height: 11,
-                decoration: BoxDecoration(
-                  color: _orange,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    return Container(
-      height: 224,
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_navyLight, _navy],
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: -46,
-            top: -62,
-            child: Container(
-              width: 210,
-              height: 210,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(.035)),
-            ),
-          ),
-          Positioned(
-            left: -74,
-            bottom: -105,
-            child: Container(
-              width: 255,
-              height: 255,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: _orange.withOpacity(.055)),
-            ),
-          ),
-          Positioned(
-            right: 18,
-            bottom: 13,
-            child: Opacity(
-              opacity: .25,
-              child: SvgPicture.asset(AppImages.darkMotorCycle, width: 145, fit: BoxFit.contain),
-            ),
-          ),
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: _isArabic
-                    ? [bell, const SizedBox(width: 10), location, const SizedBox(width: 10), logo]
-                    : [logo, const SizedBox(width: 10), location, const SizedBox(width: 10), bell],
-              ),
-            ),
-          ),
+          Text(_t('معك في كل طريق', 'With you all the way'), style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w700)),
         ],
       ),
     );
   }
 
-  Widget _profileCard(String name) {
+  Widget _location(String area) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => NavigatorMethods.pushNamed(context, DelegateLocationScreen.routeName),
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          width: 143,
+          height: 55,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(.14),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(.13)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(color: const Color(0xff0B3157).withOpacity(.90), shape: BoxShape.circle),
+                child: const Icon(Icons.location_on_outlined, color: Colors.white, size: 19),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_t('موقعك الحالي', 'Current location'), style: TextStyle(color: Colors.white.withOpacity(.75), fontSize: 8.5, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Text(area, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w900)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.keyboard_arrow_down_rounded, color: _orange, size: 19),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _profile(String name) {
     final now = DateTime.now();
     String day;
     String date;
     try {
-      day = intl.DateFormat('EEEE', _isArabic ? 'ar' : 'en').format(now);
-      date = intl.DateFormat('d MMMM yyyy', _isArabic ? 'ar' : 'en').format(now);
+      day = intl.DateFormat('EEEE', _ar ? 'ar' : 'en').format(now);
+      date = intl.DateFormat('d MMMM yyyy', _ar ? 'ar' : 'en').format(now);
     } catch (_) {
       day = '${now.day}/${now.month}';
       date = '${now.day}/${now.month}/${now.year}';
     }
 
-    final avatar = Container(
-      width: 64,
-      height: 64,
-      alignment: Alignment.center,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(colors: [Color(0xffF0F3F7), Color(0xffE5EAF0)]),
-      ),
-      child: Text(
-        _initials(name),
-        style: const TextStyle(color: _navy, fontSize: 20, fontWeight: FontWeight.w900),
-      ),
-    );
-
-    final greeting = Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _t('مرحباً، $name', 'Hello, $name'),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: _navy, fontSize: 21, height: 1.25, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            _t('👋 نتمنى لك يوماً موفقاً', '👋 Have a successful day'),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: _softText, fontSize: 12.5, fontWeight: FontWeight.w500),
-          ),
-        ],
-      ),
-    );
-
-    final dateCard = Container(
-      width: 98,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
-      decoration: BoxDecoration(color: const Color(0xffF5F7FA), borderRadius: BorderRadius.circular(17)),
-      child: Row(
-        children: [
-          const Icon(Icons.calendar_month_outlined, color: _navy, size: 20),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  day,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: _navy, fontSize: 10.5, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  date,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: _softText, fontSize: 9, fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 17, 16, 16),
+      height: 128,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xffE9EDF2)),
-        boxShadow: [BoxShadow(color: _navy.withOpacity(.08), blurRadius: 28, offset: const Offset(0, 12))],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: _isArabic
-                ? [dateCard, const SizedBox(width: 9), greeting, const SizedBox(width: 12), avatar]
-                : [avatar, const SizedBox(width: 12), greeting, const SizedBox(width: 9), dateCard],
-          ),
-          const SizedBox(height: 16),
-          if (context.read<AuthController>().profile?.walletBlock == 0) const DelegateStatusWidget(),
-        ],
-      ),
-    );
-  }
-
-  Widget _sectionTitle({required String title, required String action, required VoidCallback onTap}) {
-    return Row(
-      children: [
-        Container(
-          width: 4,
-          height: 24,
-          decoration: BoxDecoration(color: _orange, borderRadius: BorderRadius.circular(10)),
-        ),
-        const SizedBox(width: 8),
-        Expanded(child: Text(title, style: const TextStyle(color: _navy, fontSize: 20, fontWeight: FontWeight.w900))),
-        TextButton.icon(
-          onPressed: onTap,
-          iconAlignment: IconAlignment.end,
-          icon: Icon(_isArabic ? Icons.chevron_left_rounded : Icons.chevron_right_rounded, color: _orange, size: 20),
-          label: Text(action, style: const TextStyle(color: _orange, fontSize: 12.5, fontWeight: FontWeight.w800)),
-        ),
-      ],
-    );
-  }
-
-  Widget _todayStats(HomeDelegateController controller) {
-    final cards = <Widget>[
-      _TodayStatCard(
-        label: _t('قيد الانتظار', 'Pending'),
-        count: controller.totalPending,
-        icon: Icons.schedule_rounded,
-        iconColor: _orange,
-        background: const Color(0xffFFF2E7),
-      ),
-      _TodayStatCard(
-        label: _t('جاري التوصيل', 'Delivering'),
-        count: controller.currentHomeOrders?.meta?.total ?? 0,
-        icon: Icons.local_shipping_outlined,
-        iconColor: const Color(0xff2F80ED),
-        background: const Color(0xffEEF5FF),
-      ),
-      _TodayStatCard(
-        label: _t('مكتملة', 'Completed'),
-        count: 0,
-        icon: Icons.check_circle_outline_rounded,
-        iconColor: const Color(0xff14A36A),
-        background: const Color(0xffECF9F3),
-      ),
-    ];
-
-    return Row(
-      children: [
-        Expanded(child: cards[0]),
-        const SizedBox(width: 10),
-        Expanded(child: cards[1]),
-        const SizedBox(width: 10),
-        Expanded(child: cards[2]),
-      ],
-    );
-  }
-
-  Widget _currentOrderCard(DelegateOrdersModel? order) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(25),
-        border: Border.all(color: const Color(0xffE9EDF2)),
-        boxShadow: [BoxShadow(color: _navy.withOpacity(.055), blurRadius: 22, offset: const Offset(0, 9))],
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xffE8EDF2)),
+        boxShadow: [BoxShadow(color: _navy.withOpacity(.08), blurRadius: 20, offset: const Offset(0, 8))],
       ),
       child: Column(
         children: [
           Row(
             children: [
               Container(
-                width: 4,
-                height: 23,
-                decoration: BoxDecoration(color: _orange, borderRadius: BorderRadius.circular(10)),
+                width: 50,
+                height: 50,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xffF0F3F7)),
+                child: Text(_initials(name), style: const TextStyle(color: _navy, fontSize: 18, fontWeight: FontWeight.w900)),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 9),
               Expanded(
-                child: Text(_t('الطلب الحالي', 'Current order'), style: const TextStyle(color: _navy, fontSize: 18, fontWeight: FontWeight.w900)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_t('مرحباً، $name', 'Hello, $name'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _navy, fontSize: 18, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 4),
+                    Text(_t('👋 نتمنى لك يوماً موفقاً', '👋 Have a successful day'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _soft, fontSize: 10.5, fontWeight: FontWeight.w500)),
+                  ],
+                ),
               ),
-              const Icon(Icons.inventory_2_outlined, color: _orange, size: 22),
-            ],
-          ),
-          const SizedBox(height: 14),
-          if (order == null) ...[
-            SvgPicture.asset(AppImages.noOrderIcon, width: 72, height: 72),
-            const SizedBox(height: 10),
-            Text(
-              _t('لا يوجد طلب حالي حالياً', 'No current order'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: _navy, fontSize: 16, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _t('سيظهر هنا الطلب القادم بمجرد استلامه', 'Your next accepted order will appear here'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: _softText, fontSize: 12.5, fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 15),
-            _OrangeActionButton(label: _t('تحديث', 'Refresh'), icon: Icons.refresh_rounded, onTap: _refreshData),
-          ] else ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: const Color(0xffF7F9FB), borderRadius: BorderRadius.circular(18)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${_t('طلب', 'Order')} #${order.orderNo ?? order.id ?? ''}',
-                    style: const TextStyle(color: _navy, fontSize: 15, fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(Icons.storefront_outlined, color: _orange, size: 19),
-                      const SizedBox(width: 7),
-                      Expanded(
-                        child: Text(
-                          order.resturantName ?? _t('الطلب الحالي', 'Current order'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: _navy, fontSize: 12.5, fontWeight: FontWeight.w700),
-                        ),
+              const SizedBox(width: 7),
+              Container(
+                width: 87,
+                height: 46,
+                padding: const EdgeInsets.symmetric(horizontal: 7),
+                decoration: BoxDecoration(color: const Color(0xffF5F7FA), borderRadius: BorderRadius.circular(14)),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_month_outlined, color: _navy, size: 18),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(day, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _navy, fontSize: 9, fontWeight: FontWeight.w800)),
+                          Text(date, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _soft, fontSize: 7.5, fontWeight: FontWeight.w600)),
+                        ],
                       ),
-                    ],
-                  ),
-                  if ((order.toAddress ?? order.userLocation ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 7),
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on_outlined, color: Color(0xff2F80ED), size: 19),
-                        const SizedBox(width: 7),
-                        Expanded(
-                          child: Text(
-                            order.toAddress ?? order.userLocation ?? '',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: _softText, fontSize: 11.5, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ],
                     ),
                   ],
-                ],
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (context.read<AuthController>().profile?.walletBlock == 0) const DelegateStatusWidget(),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title, String action, VoidCallback onTap) {
+    return Row(
+      children: [
+        Container(width: 4, height: 21, decoration: BoxDecoration(color: _orange, borderRadius: BorderRadius.circular(8))),
+        const SizedBox(width: 7),
+        Expanded(child: Text(title, style: const TextStyle(color: _navy, fontSize: 17, fontWeight: FontWeight.w900))),
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+            child: Row(
+              children: [
+                Icon(_ar ? Icons.chevron_left_rounded : Icons.chevron_right_rounded, color: _orange, size: 18),
+                Text(action, style: const TextStyle(color: _orange, fontSize: 10.5, fontWeight: FontWeight.w900)),
+              ],
             ),
-            const SizedBox(height: 14),
-            _OrangeActionButton(
-              label: _t('عرض الطلب', 'View order'),
-              icon: Icons.arrow_forward_rounded,
-              onTap: () {
-                if (order.id == null) return;
-                NavigatorMethods.pushNamed(
-                  context,
-                  OrderDetailsDelegateScreen.routeName,
-                  arguments: OrderDetailsDelegateScreenArgs(fromHome: true, orderId: order.id!),
-                );
-              },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _stats(HomeDelegateController controller) {
+    final cards = [
+      _Stat(_t('قيد الانتظار', 'Pending'), controller.totalPending, Icons.schedule_rounded, _orange, const Color(0xffFFF2E7)),
+      _Stat(_t('جاري التوصيل', 'Delivering'), controller.currentHomeOrders?.meta?.total ?? 0, Icons.local_shipping_rounded, const Color(0xff2F80ED), const Color(0xffEEF5FF)),
+      _Stat(_t('مكتملة', 'Completed'), 0, Icons.check_rounded, const Color(0xff14A36A), const Color(0xffECF9F3)),
+    ];
+    return Row(children: [Expanded(child: cards[0]), const SizedBox(width: 7), Expanded(child: cards[1]), const SizedBox(width: 7), Expanded(child: cards[2])]);
+  }
+
+  Widget _currentOrder(DelegateOrdersModel? order) {
+    return Container(
+      height: 154,
+      padding: const EdgeInsets.fromLTRB(13, 10, 13, 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xffE8EDF2)),
+        boxShadow: [BoxShadow(color: _navy.withOpacity(.05), blurRadius: 16, offset: const Offset(0, 7))],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(width: 4, height: 20, decoration: BoxDecoration(color: _orange, borderRadius: BorderRadius.circular(8))),
+              const SizedBox(width: 7),
+              Expanded(child: Text(_t('الطلب الحالي', 'Current order'), style: const TextStyle(color: _navy, fontSize: 16, fontWeight: FontWeight.w900))),
+              const Icon(Icons.inventory_2_outlined, color: _orange, size: 20),
+            ],
+          ),
+          const Spacer(),
+          if (order == null) ...[
+            SvgPicture.asset(AppImages.noOrderIcon, width: 46, height: 46),
+            const SizedBox(height: 3),
+            Text(_t('لا يوجد طلب حالي حالياً', 'No current order'), style: const TextStyle(color: _navy, fontSize: 13, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 2),
+            Text(_t('سيظهر هنا الطلب القادم بمجرد استلامه', 'Your next accepted order will appear here'), style: const TextStyle(color: _soft, fontSize: 9.5, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 7),
+            _orangeButton(_t('تحديث', 'Refresh'), Icons.refresh_rounded, _refreshData),
+          ] else ...[
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text('${_t('طلب', 'Order')} #${order.orderNo ?? order.id ?? ''}', style: const TextStyle(color: _navy, fontSize: 13, fontWeight: FontWeight.w900)),
             ),
+            const SizedBox(height: 5),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(order.resturantName ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _soft, fontSize: 10.5, fontWeight: FontWeight.w600)),
+            ),
+            const Spacer(),
+            _orangeButton(_t('عرض الطلب', 'View order'), Icons.arrow_forward_rounded, () {
+              if (order.id == null) return;
+              NavigatorMethods.pushNamed(context, OrderDetailsDelegateScreen.routeName, arguments: OrderDetailsDelegateScreenArgs(fromHome: true, orderId: order.id!));
+            }),
           ],
         ],
       ),
     );
   }
 
+  Widget _orangeButton(String label, IconData icon, VoidCallback onTap) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(13),
+        child: Ink(
+          height: 31,
+          decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xffFF8A08), Color(0xffFF6500)]), borderRadius: BorderRadius.circular(13)),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(label, style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w900)), const SizedBox(width: 7), Icon(icon, color: Colors.white, size: 18)]),
+        ),
+      ),
+    );
+  }
+
   Widget _quickActions() {
     final actions = [
-      _QuickActionData(
-        label: _t('الدعم الفني', 'Support'),
-        icon: Icons.headset_mic_outlined,
-        onTap: () => NavigatorMethods.pushNamed(context, HelpScreen.routeName),
-      ),
-      _QuickActionData(
-        label: _t('الخريطة', 'Map'),
-        icon: Icons.map_outlined,
-        onTap: () => NavigatorMethods.pushNamed(context, DelegateLocationScreen.routeName),
-      ),
-      _QuickActionData(
-        label: _t('تقاريري', 'Reports'),
-        icon: Icons.bar_chart_rounded,
-        onTap: () => NavigatorMethods.pushNamed(context, DelegateReportsScreen.routeName),
-      ),
-      _QuickActionData(
-        label: _t('الإعدادات', 'Settings'),
-        icon: Icons.settings_outlined,
-        onTap: () => context.read<DelegateBottomNavBarController>().updateIndex(3),
-      ),
+      _Action(_t('الدعم الفني', 'Support'), Icons.headset_mic_outlined, () => NavigatorMethods.pushNamed(context, HelpScreen.routeName)),
+      _Action(_t('الخريطة', 'Map'), Icons.map_outlined, () => NavigatorMethods.pushNamed(context, DelegateLocationScreen.routeName)),
+      _Action(_t('تقاريري', 'Reports'), Icons.bar_chart_rounded, () => NavigatorMethods.pushNamed(context, DelegateReportsScreen.routeName)),
+      _Action(_t('الإعدادات', 'Settings'), Icons.settings_outlined, () => context.read<DelegateBottomNavBarController>().updateIndex(3)),
     ];
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: Text(_t('إجراءات سريعة', 'Quick actions'), style: const TextStyle(color: _navy, fontSize: 18, fontWeight: FontWeight.w900)),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            for (int i = 0; i < actions.length; i++) ...[
-              Expanded(child: _QuickActionCard(data: actions[i])),
-              if (i != actions.length - 1) const SizedBox(width: 9),
-            ],
-          ],
-        ),
+        Text(_t('إجراءات سريعة', 'Quick actions'), style: const TextStyle(color: _navy, fontSize: 16, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 6),
+        Row(children: [for (int i = 0; i < actions.length; i++) ...[Expanded(child: _ActionCard(actions[i])), if (i != actions.length - 1) const SizedBox(width: 6)]]),
       ],
     );
   }
 }
 
-class _TodayStatCard extends StatelessWidget {
-  const _TodayStatCard({
-    required this.label,
-    required this.count,
-    required this.icon,
-    required this.iconColor,
-    required this.background,
-  });
-
+class _Stat extends StatelessWidget {
+  const _Stat(this.label, this.count, this.icon, this.iconColor, this.background);
   final String label;
   final int count;
   final IconData icon;
@@ -650,85 +502,32 @@ class _TodayStatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 132,
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 12),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(21),
-        border: Border.all(color: Colors.white.withOpacity(.88)),
-      ),
+      height: 86,
+      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white)),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(color: iconColor, shape: BoxShape.circle),
-            child: Icon(icon, color: Colors.white, size: 22),
-          ),
-          const SizedBox(height: 8),
-          Text('$count', style: const TextStyle(color: Color(0xff082A4D), fontSize: 25, height: 1, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xff082A4D), fontSize: 11, fontWeight: FontWeight.w800),
-          ),
+          Container(width: 31, height: 31, decoration: BoxDecoration(color: iconColor, shape: BoxShape.circle), child: Icon(icon, color: Colors.white, size: 17)),
+          const SizedBox(height: 4),
+          Text('$count', style: const TextStyle(color: Color(0xff082A4D), fontSize: 21, height: 1, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 3),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xff082A4D), fontSize: 9.5, fontWeight: FontWeight.w800)),
         ],
       ),
     );
   }
 }
 
-class _OrangeActionButton extends StatelessWidget {
-  const _OrangeActionButton({required this.label, required this.icon, required this.onTap});
-
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Ink(
-          height: 52,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [Color(0xffFF8A08), Color(0xffFF6500)]),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [BoxShadow(color: const Color(0xffFD7201).withOpacity(.22), blurRadius: 16, offset: const Offset(0, 7))],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(label, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900)),
-              const SizedBox(width: 9),
-              Icon(icon, color: Colors.white, size: 23),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickActionData {
-  const _QuickActionData({required this.label, required this.icon, required this.onTap});
+class _Action {
+  const _Action(this.label, this.icon, this.onTap);
   final String label;
   final IconData icon;
   final VoidCallback onTap;
 }
 
-class _QuickActionCard extends StatelessWidget {
-  const _QuickActionCard({required this.data});
-  final _QuickActionData data;
+class _ActionCard extends StatelessWidget {
+  const _ActionCard(this.data);
+  final _Action data;
 
   @override
   Widget build(BuildContext context) {
@@ -736,27 +535,16 @@ class _QuickActionCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: data.onTap,
-        borderRadius: BorderRadius.circular(19),
+        borderRadius: BorderRadius.circular(14),
         child: Ink(
-          height: 92,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(19),
-            border: Border.all(color: const Color(0xffE9EDF2)),
-            boxShadow: [BoxShadow(color: const Color(0xff082A4D).withOpacity(.04), blurRadius: 16, offset: const Offset(0, 7))],
-          ),
+          height: 70,
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xffE8EDF2))),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(data.icon, color: const Color(0xff082A4D), size: 27),
-              const SizedBox(height: 8),
-              Text(
-                data.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xff082A4D), fontSize: 10.5, fontWeight: FontWeight.w800),
-              ),
+              Icon(data.icon, color: const Color(0xff082A4D), size: 22),
+              const SizedBox(height: 5),
+              Text(data.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xff082A4D), fontSize: 8.7, fontWeight: FontWeight.w800)),
             ],
           ),
         ),
