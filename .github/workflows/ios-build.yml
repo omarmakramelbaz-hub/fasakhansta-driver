@@ -36,7 +36,8 @@ jobs:
           pod --version
 
       - name: Verify mobile version
-        run: grep -q '^version: 1.0.23+23$' pubspec.yaml
+        run: |
+          grep -q '^version: 1.0.23+23$' pubspec.yaml
 
       - name: Sync iOS branding and version
         shell: bash
