@@ -1,12 +1,13 @@
 import 'dart:developer';
 
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../helpers/locale/app_locale_key.dart';
 import '../../../../helpers/utils/common_methods.dart';
-import '../../../../helpers/utils/navigator_methods.dart';
 import '../../../custom_widgets/buttons/custom_button.dart';
 import '../../../custom_widgets/custom_form_field/custom_form_field.dart';
 import '../../../custom_widgets/custom_payment_web_view/custom_payment_web_view.dart';
@@ -29,6 +30,54 @@ class _ChargeWalletBottomSheetState extends State<ChargeWalletBottomSheet> {
   final chargeWalletFormKey = GlobalKey<FormState>();
   final chargeAmountEc = TextEditingController();
   final chargeAmountFocusNode = FocusNode();
+
+  Future<void> _openPaymentPage(BuildContext context, String link) async {
+    final uri = Uri.tryParse(link.trim());
+    if (uri == null ||
+        !uri.hasScheme ||
+        (uri.scheme.toLowerCase() != 'http' && uri.scheme.toLowerCase() != 'https')) {
+      CommonMethods.showError(message: 'تعذر فتح صفحة الدفع. رابط الدفع غير صالح.');
+      return;
+    }
+
+    log('Opening payment URL: $link');
+
+    // webview_flutter has no web implementation in this project. On the web
+    // preview open the gateway in the browser instead of trying to build a
+    // mobile WebView route, which previously made the payment page appear to
+    // do nothing.
+    if (kIsWeb) {
+      final opened = await launchUrl(uri, webOnlyWindowName: '_self');
+      if (!opened) {
+        CommonMethods.showError(message: 'تعذر فتح صفحة الدفع. حاول مرة أخرى.');
+      }
+      return;
+    }
+
+    if (!context.mounted) return;
+
+    // Push the payment page directly on Android/iOS. This deliberately avoids
+    // NavigatorMethods.currentRoute because that global value can stay stale
+    // after the WebView pops itself and block a later payment attempt.
+    await Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(
+        builder: (_) => CustomPaymentWebViewScreen(
+          args: PaymentArgs(
+            url: link,
+            onFailed: () {},
+            onSuccess: () {
+              if (context.mounted && Navigator.of(context).canPop()) {
+                Navigator.pop(context);
+              }
+              widget.walletController.getWallet();
+              widget.walletController.getRedirect();
+              context.read<AuthController>().getProfile();
+            },
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,34 +125,20 @@ class _ChargeWalletBottomSheetState extends State<ChargeWalletBottomSheet> {
                       return CustomButton(
                         text: AppLocaleKey.payNow.tr(),
                         onPressed: () {
-                          if (chargeWalletFormKey.currentState!.validate() &&
-                              widget.walletController.selectedPayment != null) {
-                            context.read<WalletController>().chargingWallet(
-                              amount: chargeAmountEc.text,
-                              onSuccess: (link) {
-                                log(link);
-                                // UrlLauncherMethods.launchInBrowser(link);
-                                NavigatorMethods.pushNamed(
-                                  context,
-                                  CustomPaymentWebViewScreen.routeName,
-                                  arguments: PaymentArgs(
-                                    url: link,
-                                    onFailed: () {},
-                                    onSuccess: () {
-                                      Navigator.pop(context);
-                                      widget.walletController.getWallet();
-                                      widget.walletController.getRedirect();
-                                      context.read<AuthController>().getProfile();
-                                    },
-                                  ),
-                                );
-                                //
-                              },
-                            );
-                          }
+                          final valid = chargeWalletFormKey.currentState?.validate() ?? false;
+                          if (!valid) return;
+
                           if (widget.walletController.selectedPayment == null) {
                             CommonMethods.showError(message: AppLocaleKey.youMustChoosePaymentMethod.tr());
+                            return;
                           }
+
+                          context.read<WalletController>().chargingWallet(
+                            amount: chargeAmountEc.text,
+                            onSuccess: (link) {
+                              _openPaymentPage(context, link);
+                            },
+                          );
                         },
                       );
                     },
