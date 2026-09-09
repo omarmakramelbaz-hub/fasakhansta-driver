@@ -1,0 +1,159 @@
+name: Build Go Drive Driver iOS Release
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "pubspec.yaml"
+      - "lib/**"
+      - "assets/**"
+      - "ios/**"
+      - ".github/workflows/ios-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build_ios:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.0'
+          channel: stable
+          cache: true
+
+      - name: Show toolchain versions
+        run: |
+          flutter --version
+          xcodebuild -version
+          pod --version
+
+      - name: Verify mobile version
+        run: grep -q '^version: 1.0.23+23$' pubspec.yaml
+
+      - name: Sync iOS branding and version
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          pbx = Path('ios/Runner.xcodeproj/project.pbxproj')
+          text = pbx.read_text(encoding='utf-8')
+          text = text.replace('CURRENT_PROJECT_VERSION = 19;', 'CURRENT_PROJECT_VERSION = 23;')
+          text = text.replace('MARKETING_VERSION = 1.0.21;', 'MARKETING_VERSION = 1.0.23;')
+          text = text.replace('INFOPLIST_KEY_CFBundleDisplayName = "Fasakhaninja Delegate";',
+                              'INFOPLIST_KEY_CFBundleDisplayName = "Go Drive";')
+          pbx.write_text(text, encoding='utf-8')
+
+          plist = Path('ios/Runner/Info.plist')
+          p = plist.read_text(encoding='utf-8')
+          p = p.replace('<string>Fasakhansta Delegate</string>', '<string>Go Drive</string>')
+          plist.write_text(p, encoding='utf-8')
+          PY
+
+          grep -q 'CURRENT_PROJECT_VERSION = 23;' ios/Runner.xcodeproj/project.pbxproj
+          grep -q 'MARKETING_VERSION = 1.0.23;' ios/Runner.xcodeproj/project.pbxproj
+          grep -q 'INFOPLIST_KEY_CFBundleDisplayName = "Go Drive";' ios/Runner.xcodeproj/project.pbxproj
+          grep -q '<string>Go Drive</string>' ios/Runner/Info.plist
+
+      - name: Generate Go Drive iOS app icons
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="assets/images/go_drive_app_icon.png"
+          DST="ios/Runner/Assets.xcassets/AppIcon.appiconset"
+          test -s "$SRC"
+          mkdir -p "$DST"
+
+          resize_icon() {
+            local px="$1"
+            local file="$2"
+            sips -z "$px" "$px" "$SRC" --out "$DST/$file" >/dev/null
+            test -s "$DST/$file"
+          }
+
+          resize_icon 40   Icon-App-20x20@2x.png
+          resize_icon 60   Icon-App-20x20@3x.png
+          resize_icon 29   Icon-App-29x29@1x.png
+          resize_icon 58   Icon-App-29x29@2x.png
+          resize_icon 87   Icon-App-29x29@3x.png
+          resize_icon 80   Icon-App-40x40@2x.png
+          resize_icon 120  Icon-App-40x40@3x.png
+          resize_icon 57   Icon-App-57x57@1x.png
+          resize_icon 114  Icon-App-57x57@2x.png
+          resize_icon 120  Icon-App-60x60@2x.png
+          resize_icon 180  Icon-App-60x60@3x.png
+          resize_icon 20   Icon-App-20x20@1x.png
+          resize_icon 40   Icon-App-20x20@2x.png
+          resize_icon 29   Icon-App-29x29@1x.png
+          resize_icon 58   Icon-App-29x29@2x.png
+          resize_icon 40   Icon-App-40x40@1x.png
+          resize_icon 80   Icon-App-40x40@2x.png
+          resize_icon 50   Icon-App-50x50@1x.png
+          resize_icon 100  Icon-App-50x50@2x.png
+          resize_icon 72   Icon-App-72x72@1x.png
+          resize_icon 144  Icon-App-72x72@2x.png
+          resize_icon 76   Icon-App-76x76@1x.png
+          resize_icon 152  Icon-App-76x76@2x.png
+          resize_icon 167  Icon-App-83.5x83.5@2x.png
+          resize_icon 1024 Icon-App-1024x1024@1x.png
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Install iOS pods
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ios
+          pod install --repo-update
+
+      - name: Build iOS Release without code signing
+        run: flutter build ios --release --no-codesign --build-name=1.0.23 --build-number=23
+
+      - name: Verify iOS app
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="build/ios/iphoneos/Runner.app"
+          PLIST="$APP/Info.plist"
+          test -d "$APP"
+          test -s "$PLIST"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$PLIST")" = "Go Drive"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")" = "1.0.23"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")" = "23"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" go-drive-driver-1.0.23-build23-ios-unsigned.zip
+          shasum -a 256 go-drive-driver-1.0.23-build23-ios-unsigned.zip
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-drive-driver-1.0.23-build23-ios-unsigned
+          path: go-drive-driver-1.0.23-build23-ios-unsigned.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Persist iOS branding, version and icons
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ios/Runner.xcodeproj/project.pbxproj \
+                  ios/Runner/Info.plist \
+                  ios/Runner/Assets.xcassets/AppIcon.appiconset
+          if git diff --cached --quiet; then
+            echo "iOS branding/version/icons already persisted."
+          else
+            git commit -m "Sync Go Drive iOS branding and release metadata [skip ci]"
+            git push origin HEAD:main
+          fi
