@@ -11,9 +11,6 @@ on:
       - ".github/workflows/android-apk.yml"
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   build_android:
     runs-on: ubuntu-latest
@@ -23,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -35,46 +32,15 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Enlarge Go Drive launcher icon
+      - name: Verify Go Drive launcher assets
         shell: bash
         run: |
           set -euo pipefail
-          SRC="assets/images/go_drive_app_icon.png"
-          test -s "$SRC"
-
-          if command -v magick >/dev/null 2>&1; then
-            IM="magick"
-          elif command -v convert >/dev/null 2>&1; then
-            IM="convert"
-          else
-            sudo apt-get update
-            sudo apt-get install -y imagemagick
-            IM="convert"
-          fi
-
-          $IM "$SRC" -fuzz 5% -trim +repage -resize 950x950 \
-            -gravity center -background white -extent 1024x1024 /tmp/go_drive_app_icon_large.png
-          cp /tmp/go_drive_app_icon_large.png "$SRC"
-
-          declare -A sizes=(
-            [mipmap-mdpi]=48
-            [mipmap-hdpi]=72
-            [mipmap-xhdpi]=96
-            [mipmap-xxhdpi]=144
-            [mipmap-xxxhdpi]=192
-          )
-
-          find android/app/src/main/res -type f \
-            \( -name 'ic_launcher.png' -o -name 'ic_launcher.jpg' -o -name 'ic_launcher.jpeg' \) \
-            -path '*/mipmap-*/*' -delete
-
-          for dir in "${!sizes[@]}"; do
-            px="${sizes[$dir]}"
-            mkdir -p "android/app/src/main/res/$dir"
-            $IM /tmp/go_drive_app_icon_large.png -resize "${px}x${px}" \
-              "android/app/src/main/res/$dir/ic_launcher.png"
-          done
-
+          test -s assets/images/go_drive_app_icon.png
+          test -s android/app/src/main/res/mipmap-mdpi/ic_launcher.png
+          test -s android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          test -s android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          test -s android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
           test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
 
       - name: Patch Android build compatibility
@@ -149,23 +115,3 @@ jobs:
           path: build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 14
-
-      - name: Persist enlarged launcher icon in repository
-        if: success()
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add assets/images/go_drive_app_icon.png \
-            android/app/src/main/res/mipmap-mdpi/ic_launcher.png \
-            android/app/src/main/res/mipmap-hdpi/ic_launcher.png \
-            android/app/src/main/res/mipmap-xhdpi/ic_launcher.png \
-            android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png \
-            android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-          if git diff --cached --quiet; then
-            echo "Launcher icon already persisted."
-          else
-            git commit -m "Persist enlarged Go Drive launcher icons [skip ci]"
-            git push origin HEAD:main
-          fi
