@@ -4,7 +4,6 @@ import 'dart:developer';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
 
@@ -33,13 +32,22 @@ class HomeDelegateScreen extends StatefulWidget {
 class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
   late PusherController _pusherController;
 
-  static const _navy = Color(0xff082A4D);
-  static const _navy2 = Color(0xff0D426F);
-  static const _orange = Color(0xffFD7201);
-  static const _soft = Color(0xff7D8490);
+  static const _orange = Color(0xffFF7200);
+  static const _orange2 = Color(0xffFF9200);
+  static const _ink = Color(0xff161616);
+  static const _muted = Color(0xff7A7F87);
+  static const _surface = Color(0xffF6F7F9);
 
   bool get _ar => context.locale.languageCode == 'ar';
   String _t(String ar, String en) => _ar ? ar : en;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshData());
+    _pusherController = context.read<PusherController>();
+    _pusherController.addEventListener('delegate.updated', _onPusher);
+  }
 
   Future<void> _refreshData() async {
     final controller = context.read<HomeDelegateController>();
@@ -49,14 +57,6 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
       controller.getPendingDelegateHomeOrders(),
       controller.getCurrentDelegateHomeOrders(),
     ]);
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshData());
-    _pusherController = context.read<PusherController>();
-    _pusherController.addEventListener('delegate.updated', _onPusher);
   }
 
   void _onPusher(PusherEvent event) {
@@ -75,17 +75,10 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
     super.dispose();
   }
 
-  String _initials(String name) {
-    final p = name.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
-    if (p.isEmpty) return 'GO';
-    if (p.length == 1) return p.first.characters.first.toUpperCase();
-    return '${p.first.characters.first}${p[1].characters.first}'.toUpperCase();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xffF5F7FA),
+      backgroundColor: _surface,
       body: Consumer<HomeDelegateController>(
         builder: (context, controller, _) {
           final profile = context.watch<AuthController>().profile;
@@ -99,143 +92,159 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
               ? controller.currentDelegateHomeOrders.first
               : null;
 
-          return LayoutBuilder(
-            builder: (context, c) {
-              return SizedBox.expand(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.topCenter,
-                  child: SizedBox(
-                    width: 390,
-                    height: c.maxHeight * 390 / (c.maxWidth < 390 ? c.maxWidth : 390),
-                    child: Stack(
-                      children: [
-                        Column(
-                          children: [
-                            _hero(area),
-                            const SizedBox(height: 83),
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                                child: Column(
-                                  children: [
-                                    _sectionTitle(
-                                      _t('طلبات اليوم', "Today's orders"),
-                                      _t('عرض الكل', 'View all'),
-                                      () => context.read<DelegateBottomNavBarController>().updateIndex(1),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    _stats(controller),
-                                    const Spacer(),
-                                    _currentOrder(currentOrder),
-                                    const Spacer(),
-                                    const MyCurrentBalanceWidget(),
-                                    const Spacer(),
-                                    _quickActions(),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        Positioned(
-                          left: 12,
-                          right: 12,
-                          top: 124,
-                          child: _profile(name),
-                        ),
-                      ],
+          final currentCount = controller.currentHomeOrders?.meta?.total ?? 0;
+          final pendingCount = controller.totalPending;
+          final totalCount = pendingCount + currentCount;
+
+          return RefreshIndicator(
+            color: _orange,
+            onRefresh: _refreshData,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+              child: Column(
+                children: [
+                  _header(name, area),
+                  Transform.translate(
+                    offset: const Offset(0, -22),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: Column(
+                        children: [
+                          _currentOrderCard(currentOrder),
+                          const SizedBox(height: 14),
+                          _statsRow(
+                            total: totalCount,
+                            pending: pendingCount,
+                            current: currentCount,
+                            completed: 0,
+                          ),
+                          const SizedBox(height: 14),
+                          const MyCurrentBalanceWidget(),
+                          const SizedBox(height: 14),
+                          _safetyBanner(),
+                          const SizedBox(height: 18),
+                          _quickActions(),
+                          const SizedBox(height: 104),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
+                ],
+              ),
+            ),
           );
         },
       ),
     );
   }
 
-  Widget _hero(String area) {
-    return Container(
-      height: 176,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xff062645), Color(0xff0B3A64), Color(0xff15527F)],
-        ),
-      ),
+  Widget _header(String name, String area) {
+    return SizedBox(
+      height: 238,
       child: Stack(
-        clipBehavior: Clip.none,
         children: [
-          Positioned(
-            left: -35,
-            top: -60,
+          ClipPath(
+            clipper: _OrangeHeaderClipper(),
             child: Container(
-              width: 210,
-              height: 210,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(.035)),
-            ),
-          ),
-          Positioned(
-            right: -42,
-            bottom: -90,
-            child: Container(
-              width: 220,
-              height: 220,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: _orange.withOpacity(.07)),
-            ),
-          ),
-          Positioned.fill(
-            child: CustomPaint(painter: _RoadGlowPainter()),
-          ),
-          Positioned(
-            right: 12,
-            bottom: -1,
-            child: Opacity(
-              opacity: .42,
-              child: SvgPicture.asset(AppImages.darkMotorCycle, width: 122),
-            ),
-          ),
-          SafeArea(
-            bottom: false,
-            child: Stack(
-              children: [
-                Positioned(left: 17, top: 5, child: _brandWordmark()),
-                Positioned(left: 120, right: 59, top: 6, child: _location(area)),
-                Positioned(
-                  right: 15,
-                  top: 8,
-                  child: InkWell(
-                    onTap: () => context.read<DelegateBottomNavBarController>().updateIndex(2),
-                    borderRadius: BorderRadius.circular(28),
-                    child: SizedBox(
-                      width: 39,
-                      height: 47,
-                      child: Stack(
-                        alignment: Alignment.center,
+              height: 226,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [_orange2, _orange, Color(0xffFF5E00)],
+                ),
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: -40,
+                    top: -80,
+                    child: Container(
+                      width: 220,
+                      height: 220,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(.07),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: -70,
+                    bottom: -80,
+                    child: Container(
+                      width: 220,
+                      height: 220,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.black.withOpacity(.05),
+                      ),
+                    ),
+                  ),
+                  SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+                      child: Column(
                         children: [
-                          const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 29),
-                          Positioned(
-                            right: 1,
-                            top: 2,
-                            child: Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: _orange,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 1.5),
-                              ),
+                          SizedBox(
+                            height: 58,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Align(
+                                  alignment: AlignmentDirectional.centerStart,
+                                  child: _locationPill(area),
+                                ),
+                                const _GoDriveWordmark(),
+                                Align(
+                                  alignment: AlignmentDirectional.centerEnd,
+                                  child: _notificationButton(),
+                                ),
+                              ],
                             ),
+                          ),
+                          const SizedBox(height: 18),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _t('أهلاً، $name', 'Welcome, $name'),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 23,
+                                        height: 1.1,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 7),
+                                    Text(
+                                      _t('جاهز لرحلة جديدة؟', 'Ready for a new trip?'),
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(.86),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              if (context.read<AuthController>().profile?.walletBlock == 0)
+                                const SizedBox(width: 178, child: DelegateStatusWidget()),
+                            ],
                           ),
                         ],
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -243,76 +252,34 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
     );
   }
 
-  Widget _brandWordmark() {
-    return SizedBox(
-      width: 94,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Column(
-                children: List.generate(
-                  3,
-                  (i) => Container(
-                    width: 20 - (i * 3),
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 3),
-                    decoration: BoxDecoration(color: _orange, borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Text('GO', style: TextStyle(color: Colors.white, fontSize: 29, height: .9, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
-            ],
-          ),
-          const Padding(
-            padding: EdgeInsets.only(left: 27),
-            child: Text('DRIVE', style: TextStyle(color: Colors.white, fontSize: 19, height: .95, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
-          ),
-          const SizedBox(height: 4),
-          Text(_t('معك في كل طريق', 'With you all the way'), style: TextStyle(color: Colors.white.withOpacity(.88), fontSize: 9.5, fontWeight: FontWeight.w700)),
-        ],
-      ),
-    );
-  }
-
-  Widget _location(String area) {
+  Widget _locationPill(String area) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () => NavigatorMethods.pushNamed(context, DelegateLocationScreen.routeName),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(22),
         child: Ink(
-          height: 56,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          width: 132,
+          height: 43,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(.12),
-            borderRadius: BorderRadius.circular(16),
+            color: Colors.black.withOpacity(.18),
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(color: Colors.white.withOpacity(.16)),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(.08), blurRadius: 14, offset: const Offset(0, 6))],
           ),
           child: Row(
             children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(color: const Color(0xff0A3157).withOpacity(.92), shape: BoxShape.circle),
-                child: const Icon(Icons.location_on_outlined, color: Colors.white, size: 19),
-              ),
-              const SizedBox(width: 7),
+              const Icon(Icons.location_on_rounded, color: Colors.white, size: 18),
+              const SizedBox(width: 5),
               Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(_t('موقعك الحالي', 'Current location'), style: TextStyle(color: Colors.white.withOpacity(.70), fontSize: 8.5, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 2),
-                    Text(area, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w900)),
-                  ],
+                child: Text(
+                  area,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900),
                 ),
               ),
-              const Icon(Icons.keyboard_arrow_down_rounded, color: _orange, size: 18),
+              const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 17),
             ],
           ),
         ),
@@ -320,245 +287,341 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
     );
   }
 
-  Widget _profile(String name) {
-    final now = DateTime.now();
-    String day;
-    String date;
-    try {
-      day = intl.DateFormat('EEEE', _ar ? 'ar' : 'en').format(now);
-      date = intl.DateFormat('d MMMM yyyy', _ar ? 'ar' : 'en').format(now);
-    } catch (_) {
-      day = '${now.day}/${now.month}';
-      date = '${now.day}/${now.month}/${now.year}';
-    }
-
-    return Container(
-      height: 118,
-      padding: const EdgeInsets.fromLTRB(12, 11, 12, 9),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(23),
-        border: Border.all(color: const Color(0xffE7EBF0)),
-        boxShadow: [BoxShadow(color: _navy.withOpacity(.11), blurRadius: 24, offset: const Offset(0, 10))],
-      ),
-      child: Column(
-        children: [
-          Row(
+  Widget _notificationButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => context.read<DelegateBottomNavBarController>().updateIndex(2),
+        borderRadius: BorderRadius.circular(22),
+        child: Ink(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(.16),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withOpacity(.24)),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xffF0F3F7)),
-                child: Text(_initials(name), style: const TextStyle(color: _navy, fontSize: 17, fontWeight: FontWeight.w900)),
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(_t('مرحباً، $name', 'Hello, $name'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _navy, fontSize: 17, fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 3),
-                    Text(_t('👋 نتمنى لك يوماً موفقاً', '👋 Have a successful day'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _soft, fontSize: 10, fontWeight: FontWeight.w500)),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 7),
-              Container(
-                width: 82,
-                height: 43,
-                padding: const EdgeInsets.symmetric(horizontal: 7),
-                decoration: BoxDecoration(color: const Color(0xffF5F7FA), borderRadius: BorderRadius.circular(13)),
-                child: Row(
-                  children: [
-                    const Icon(Icons.calendar_month_outlined, color: _navy, size: 17),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(day, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _navy, fontSize: 8.7, fontWeight: FontWeight.w800)),
-                          Text(date, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _soft, fontSize: 7.2, fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    ),
-                  ],
+              const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 27),
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(color: Color(0xffE51B23), shape: BoxShape.circle),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 7),
-          if (context.read<AuthController>().profile?.walletBlock == 0) const DelegateStatusWidget(),
+        ),
+      ),
+    );
+  }
+
+  Widget _currentOrderCard(DelegateOrdersModel? order) {
+    final hasOrder = order != null;
+    final orderTitle = order?.resturantName?.trim().isNotEmpty == true
+        ? order!.resturantName!.trim()
+        : _t('طلب توصيل', 'Delivery order');
+    final address = order?.resturantLocation?.trim().isNotEmpty == true
+        ? order!.resturantLocation!.trim()
+        : (order?.fromAddress?.trim().isNotEmpty == true
+            ? order!.fromAddress!.trim()
+            : _t('سيظهر عنوان الاستلام هنا', 'Pickup address will appear here'));
+    final customer = order?.userName?.trim().isNotEmpty == true
+        ? order!.userName!.trim()
+        : _t('بيانات العميل', 'Customer details');
+
+    return Container(
+      height: 246,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xff171717),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(.20), blurRadius: 28, offset: const Offset(0, 13)),
         ],
       ),
-    );
-  }
-
-  Widget _sectionTitle(String title, String action, VoidCallback onTap) {
-    return Row(
-      children: [
-        Container(width: 4, height: 20, decoration: BoxDecoration(color: _orange, borderRadius: BorderRadius.circular(8))),
-        const SizedBox(width: 7),
-        Expanded(child: Text(title, style: const TextStyle(color: _navy, fontSize: 16.5, fontWeight: FontWeight.w900))),
-        InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-            child: Row(
-              children: [
-                Icon(_ar ? Icons.chevron_left_rounded : Icons.chevron_right_rounded, color: _orange, size: 18),
-                Text(action, style: const TextStyle(color: _orange, fontSize: 10.5, fontWeight: FontWeight.w900)),
-              ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: Stack(
+          children: [
+            Positioned.fill(child: CustomPaint(painter: _RoutePainter(active: hasOrder))),
+            Positioned(
+              left: -40,
+              bottom: -45,
+              child: Container(
+                width: 170,
+                height: 170,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: _orange.withOpacity(.10)),
+              ),
             ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _stats(HomeDelegateController controller) {
-    return Row(
-      children: [
-        Expanded(child: _Stat(_t('قيد الانتظار', 'Pending'), controller.totalPending, Icons.schedule_rounded, _orange, const Color(0xffFFF2E7))),
-        const SizedBox(width: 7),
-        Expanded(child: _Stat(_t('جاري التوصيل', 'Delivering'), controller.currentHomeOrders?.meta?.total ?? 0, Icons.local_shipping_rounded, const Color(0xff2F80ED), const Color(0xffEEF5FF))),
-        const SizedBox(width: 7),
-        Expanded(child: _Stat(_t('مكتملة', 'Completed'), 0, Icons.check_rounded, const Color(0xff14A36A), const Color(0xffECF9F3))),
-      ],
-    );
-  }
-
-  Widget _currentOrder(DelegateOrdersModel? order) {
-    return Container(
-      height: 119,
-      padding: const EdgeInsets.fromLTRB(13, 9, 13, 9),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(21),
-        border: Border.all(color: const Color(0xffE7EBF0)),
-        boxShadow: [BoxShadow(color: _navy.withOpacity(.055), blurRadius: 18, offset: const Offset(0, 7))],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(width: 4, height: 19, decoration: BoxDecoration(color: _orange, borderRadius: BorderRadius.circular(8))),
-              const SizedBox(width: 6),
-              Expanded(child: Text(_t('الطلب الحالي', 'Current order'), style: const TextStyle(color: _navy, fontSize: 16, fontWeight: FontWeight.w900))),
-              const Icon(Icons.inventory_2_outlined, color: _orange, size: 18),
-            ],
-          ),
-          const SizedBox(height: 5),
-          if (order == null) ...[
-            Row(
-              children: [
-                Container(
-                  width: 58,
-                  height: 52,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(color: const Color(0xffF7F9FB), borderRadius: BorderRadius.circular(16)),
-                  child: SvgPicture.asset(AppImages.noOrderIcon, width: 38, height: 38),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 17, 18, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Text(_t('لا يوجد طلب حالي حالياً', 'No current order'), style: const TextStyle(color: _navy, fontSize: 13, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 3),
-                      Text(_t('سيظهر هنا الطلب القادم بمجرد استلامه', 'Your next accepted order will appear here'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _soft, fontSize: 9.5, fontWeight: FontWeight.w500)),
+                      Container(
+                        height: 36,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [_orange2, _orange]),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.inventory_2_outlined, color: Colors.white, size: 17),
+                            const SizedBox(width: 6),
+                            Text(
+                              hasOrder ? _t('طلب حالي', 'Current order') : _t('لا يوجد طلب', 'No order'),
+                              style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w900),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(.06),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.white.withOpacity(.10)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.schedule_rounded, color: _orange, size: 17),
+                            const SizedBox(width: 5),
+                            Text(
+                              hasOrder ? _t('جاري التنفيذ', 'In progress') : _t('جاهز', 'Ready'),
+                              style: TextStyle(color: Colors.white.withOpacity(.82), fontSize: 10, fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                InkWell(
-                  onTap: _refreshData,
-                  borderRadius: BorderRadius.circular(15),
-                  child: Container(
-                    width: 82,
-                    height: 39,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [Color(0xffFF8A08), Color(0xffFF6500)]),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
-                        const SizedBox(width: 4),
-                        Text(_t('تحديث', 'Refresh'), style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w900)),
-                      ],
-                    ),
+                  const SizedBox(height: 16),
+                  Text(
+                    hasOrder ? '#${order.orderNo ?? order.id ?? ''}' : _t('بانتظار طلب جديد', 'Waiting for a new order'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 27, height: 1, fontWeight: FontWeight.w900),
                   ),
-                ),
-              ],
-            ),
-          ] else ...[
-            Row(
-              children: [
-                Container(
-                  width: 47,
-                  height: 47,
-                  decoration: BoxDecoration(color: const Color(0xffFFF2E7), borderRadius: BorderRadius.circular(14)),
-                  child: const Icon(Icons.delivery_dining_rounded, color: _orange, size: 25),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 7),
+                  Text(
+                    hasOrder ? orderTitle : _t('أول ما تستلم طلب هيظهر هنا بكل تفاصيله', 'Your next accepted order will appear here'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Colors.white.withOpacity(.92), fontSize: 15, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 12),
+                  if (hasOrder) ...[
+                    _darkInfoRow(Icons.location_on_rounded, address),
+                    const SizedBox(height: 6),
+                    _darkInfoRow(Icons.person_outline_rounded, customer),
+                  ] else
+                    _darkInfoRow(Icons.route_rounded, _t('خليك متصل علشان تستقبل الطلبات فوراً', 'Stay online to receive orders instantly')),
+                  const Spacer(),
+                  Row(
                     children: [
-                      Text('${_t('طلب', 'Order')} #${order.orderNo ?? order.id ?? ''}', style: const TextStyle(color: _navy, fontSize: 12.5, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 2),
-                      Text(order.resturantName ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _soft, fontSize: 9.5, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-                InkWell(
-                  onTap: order.id == null
-                      ? null
-                      : () => NavigatorMethods.pushNamed(
-                            context,
-                            OrderDetailsDelegateScreen.routeName,
-                            arguments: OrderDetailsDelegateScreenArgs(fromHome: true, orderId: order.id!),
+                      Expanded(
+                        child: InkWell(
+                          onTap: hasOrder && order.id != null
+                              ? () => NavigatorMethods.pushNamed(
+                                    context,
+                                    OrderDetailsDelegateScreen.routeName,
+                                    arguments: OrderDetailsDelegateScreenArgs(fromHome: true, orderId: order.id!),
+                                  )
+                              : _refreshData,
+                          borderRadius: BorderRadius.circular(19),
+                          child: Container(
+                            height: 48,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(colors: [_orange2, _orange]),
+                              borderRadius: BorderRadius.circular(19),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(hasOrder ? Icons.navigation_rounded : Icons.refresh_rounded, color: Colors.white, size: 20),
+                                const SizedBox(width: 7),
+                                Text(
+                                  hasOrder ? _t('متابعة التوصيل', 'Continue delivery') : _t('تحديث الطلبات', 'Refresh orders'),
+                                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900),
+                                ),
+                              ],
+                            ),
                           ),
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    height: 38,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(color: _orange, borderRadius: BorderRadius.circular(14)),
-                    alignment: Alignment.center,
-                    child: Text(_t('عرض الطلب', 'View order'), style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w900)),
+                        ),
+                      ),
+                      if (hasOrder) ...[
+                        const SizedBox(width: 10),
+                        InkWell(
+                          onTap: order.id == null
+                              ? null
+                              : () => NavigatorMethods.pushNamed(
+                                    context,
+                                    OrderDetailsDelegateScreen.routeName,
+                                    arguments: OrderDetailsDelegateScreenArgs(fromHome: true, orderId: order.id!),
+                                  ),
+                          borderRadius: BorderRadius.circular(19),
+                          child: Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(horizontal: 15),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(.05),
+                              borderRadius: BorderRadius.circular(19),
+                              border: Border.all(color: Colors.white.withOpacity(.35)),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              _t('التفاصيل', 'Details'),
+                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _darkInfoRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.white, size: 18),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: Colors.white.withOpacity(.72), fontSize: 10.5, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _statsRow({required int total, required int pending, required int current, required int completed}) {
+    return Row(
+      children: [
+        Expanded(child: _MiniStat(value: total, label: _t('إجمالي', 'Total'), icon: Icons.inventory_2_rounded, tint: const Color(0xff2874F0), soft: const Color(0xffEEF4FF))),
+        const SizedBox(width: 7),
+        Expanded(child: _MiniStat(value: pending, label: _t('انتظار', 'Pending'), icon: Icons.schedule_rounded, tint: _orange, soft: const Color(0xffFFF1E5))),
+        const SizedBox(width: 7),
+        Expanded(child: _MiniStat(value: current, label: _t('تنفيذ', 'Active'), icon: Icons.delivery_dining_rounded, tint: const Color(0xff1E9E64), soft: const Color(0xffEAF9F1))),
+        const SizedBox(width: 7),
+        Expanded(child: _MiniStat(value: completed, label: _t('مكتمل', 'Done'), icon: Icons.check_rounded, tint: const Color(0xff11A96C), soft: const Color(0xffE8F8F0))),
+      ],
+    );
+  }
+
+  Widget _safetyBanner() {
+    return Row(
+      children: [
+        Expanded(
+          flex: 2,
+          child: Container(
+            height: 112,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xff171717), Color(0xff2C2C2C)],
+              ),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Stack(
+              children: [
+                PositionedDirectional(
+                  end: 2,
+                  bottom: -7,
+                  child: Opacity(opacity: .62, child: SvgPicture.asset(AppImages.darkMotorCycle, width: 118)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(15),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _t('سرعة أقل..\nأمان أكتر', 'Ride safe.\nArrive strong.'),
+                        style: const TextStyle(color: Colors.white, fontSize: 17, height: 1.15, fontWeight: FontWeight.w900),
+                      ),
+                      const Spacer(),
+                      Container(width: 55, height: 4, decoration: BoxDecoration(color: _orange, borderRadius: BorderRadius.circular(5))),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Container(
+            height: 112,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xffFFF2E9),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xffFFE1CB)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: const BoxDecoration(color: Color(0xffFFD9C1), shape: BoxShape.circle),
+                  child: const Icon(Icons.verified_user_outlined, color: _orange, size: 20),
+                ),
+                const Spacer(),
+                Text(_t('التزم\nبالسلامة', 'Safety\nfirst'), style: const TextStyle(color: _ink, fontSize: 13, height: 1.15, fontWeight: FontWeight.w900)),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _quickActions() {
-    final actions = [
-      _Quick(_t('الدعم الفني', 'Support'), Icons.headset_mic_outlined, () => NavigatorMethods.pushNamed(context, HelpScreen.routeName)),
-      _Quick(_t('الخريطة', 'Map'), Icons.map_outlined, () => NavigatorMethods.pushNamed(context, DelegateLocationScreen.routeName)),
-      _Quick(_t('تقاريري', 'Reports'), Icons.bar_chart_rounded, () => NavigatorMethods.pushNamed(context, DelegateReportsScreen.routeName)),
-      _Quick(_t('الإعدادات', 'Settings'), Icons.settings_outlined, () => context.read<DelegateBottomNavBarController>().updateIndex(3)),
+    final actions = <_QuickAction>[
+      _QuickAction(_t('الإعدادات', 'Settings'), Icons.settings_outlined, () => context.read<DelegateBottomNavBarController>().updateIndex(3)),
+      _QuickAction(_t('تقاريري', 'Reports'), Icons.bar_chart_rounded, () => NavigatorMethods.pushNamed(context, DelegateReportsScreen.routeName)),
+      _QuickAction(_t('الخريطة', 'Map'), Icons.map_outlined, () => NavigatorMethods.pushNamed(context, DelegateLocationScreen.routeName)),
+      _QuickAction(_t('الدعم الفني', 'Support'), Icons.headset_mic_outlined, () => NavigatorMethods.pushNamed(context, HelpScreen.routeName)),
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(_t('إجراءات سريعة', 'Quick actions'), style: const TextStyle(color: _navy, fontSize: 15.5, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 6),
+        Row(
+          children: [
+            Container(width: 5, height: 24, decoration: BoxDecoration(color: _orange, borderRadius: BorderRadius.circular(6))),
+            const SizedBox(width: 8),
+            Text(_t('أدوات المندوب', 'Driver tools'), style: const TextStyle(color: _ink, fontSize: 18, fontWeight: FontWeight.w900)),
+          ],
+        ),
+        const SizedBox(height: 11),
         Row(
           children: [
             for (int i = 0; i < actions.length; i++) ...[
-              Expanded(child: _QuickCard(data: actions[i])),
-              if (i != actions.length - 1) const SizedBox(width: 6),
+              Expanded(child: _QuickActionCard(action: actions[i])),
+              if (i != actions.length - 1) const SizedBox(width: 7),
             ],
           ],
         ),
@@ -567,97 +630,169 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
   }
 }
 
-class _RoadGlowPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = Colors.white.withOpacity(.045)..strokeWidth = 1.2;
-    for (int i = 0; i < 6; i++) {
-      final x = 210.0 + (i * 27);
-      canvas.drawLine(Offset(x, 0), Offset(x - 35, size.height), p);
-    }
-    final road = Paint()..color = Colors.white.withOpacity(.035);
-    final path = Path()
-      ..moveTo(size.width * .45, size.height)
-      ..lineTo(size.width * .66, size.height)
-      ..lineTo(size.width * .60, size.height * .48)
-      ..lineTo(size.width * .52, size.height * .48)
-      ..close();
-    canvas.drawPath(path, road);
-  }
+class _GoDriveWordmark extends StatelessWidget {
+  const _GoDriveWordmark();
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Text('GO', style: TextStyle(color: Colors.white, fontSize: 25, height: .9, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
+            const SizedBox(width: 5),
+            Column(
+              children: List.generate(
+                3,
+                (i) => Container(
+                  width: 21 - i * 3,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 3),
+                  decoration: BoxDecoration(color: const Color(0xff171717), borderRadius: BorderRadius.circular(6)),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const Text('DRIVE', style: TextStyle(color: Colors.white, fontSize: 16, height: 1, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
+      ],
+    );
+  }
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat(this.label, this.count, this.icon, this.iconColor, this.bg);
+class _MiniStat extends StatelessWidget {
+  const _MiniStat({required this.value, required this.label, required this.icon, required this.tint, required this.soft});
+
+  final int value;
   final String label;
-  final int count;
   final IconData icon;
-  final Color iconColor;
-  final Color bg;
+  final Color tint;
+  final Color soft;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 70,
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white)),
-      child: Row(
+      height: 88,
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(21),
+        border: Border.all(color: const Color(0xffE9EBEF)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.035), blurRadius: 14, offset: const Offset(0, 6))],
+      ),
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(width: 32, height: 32, decoration: BoxDecoration(color: iconColor, shape: BoxShape.circle), child: Icon(icon, color: Colors.white, size: 17)),
-          const SizedBox(width: 7),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('$count', style: const TextStyle(color: Color(0xff082A4D), fontSize: 18, height: 1, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 4),
-              SizedBox(width: 56, child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xff082A4D), fontSize: 8.8, fontWeight: FontWeight.w800))),
-            ],
+          Container(
+            width: 31,
+            height: 31,
+            decoration: BoxDecoration(color: soft, shape: BoxShape.circle),
+            child: Icon(icon, color: tint, size: 17),
           ),
+          const SizedBox(height: 5),
+          Text('$value', style: const TextStyle(color: Color(0xff171717), fontSize: 18, height: 1, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 3),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xff6F747C), fontSize: 8.5, fontWeight: FontWeight.w700)),
         ],
       ),
     );
   }
 }
 
-class _Quick {
-  const _Quick(this.label, this.icon, this.onTap);
+class _QuickAction {
+  const _QuickAction(this.label, this.icon, this.onTap);
   final String label;
   final IconData icon;
   final VoidCallback onTap;
 }
 
-class _QuickCard extends StatelessWidget {
-  const _QuickCard({required this.data});
-  final _Quick data;
+class _QuickActionCard extends StatelessWidget {
+  const _QuickActionCard({required this.action});
+  final _QuickAction action;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: data.onTap,
-        borderRadius: BorderRadius.circular(16),
+        onTap: action.onTap,
+        borderRadius: BorderRadius.circular(20),
         child: Ink(
-          height: 58,
+          height: 88,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xffE7EBF0)),
-            boxShadow: [BoxShadow(color: const Color(0xff082A4D).withOpacity(.035), blurRadius: 12, offset: const Offset(0, 5))],
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xffE8EAEE)),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(data.icon, color: const Color(0xff082A4D), size: 21),
-              const SizedBox(height: 4),
-              Text(data.label, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xff082A4D), fontSize: 8.4, fontWeight: FontWeight.w800)),
+              Icon(action.icon, color: const Color(0xff202124), size: 25),
+              const SizedBox(height: 7),
+              Text(action.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xff202124), fontSize: 9.5, fontWeight: FontWeight.w800)),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _OrangeHeaderClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path()
+      ..lineTo(0, size.height - 28)
+      ..lineTo(size.width * .17, size.height - 14)
+      ..lineTo(size.width * .34, size.height - 29)
+      ..lineTo(size.width * .52, size.height - 14)
+      ..lineTo(size.width * .70, size.height - 27)
+      ..lineTo(size.width * .86, size.height - 13)
+      ..lineTo(size.width, size.height - 25)
+      ..lineTo(size.width, 0)
+      ..close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+}
+
+class _RoutePainter extends CustomPainter {
+  const _RoutePainter({required this.active});
+  final bool active;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final grid = Paint()
+      ..color = Colors.white.withOpacity(.035)
+      ..strokeWidth = 1;
+    for (double y = 25; y < size.height; y += 34) {
+      canvas.drawLine(Offset(size.width * .47, y), Offset(size.width, y - 14), grid);
+    }
+    for (double x = size.width * .55; x < size.width; x += 42) {
+      canvas.drawLine(Offset(x, 0), Offset(x - 55, size.height), grid);
+    }
+
+    final route = Paint()
+      ..color = active ? const Color(0xffFF7200) : Colors.white.withOpacity(.16)
+      ..strokeWidth = 5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final path = Path()
+      ..moveTo(size.width * .60, size.height * .30)
+      ..cubicTo(size.width * .66, size.height * .35, size.width * .70, size.height * .46, size.width * .73, size.height * .53)
+      ..cubicTo(size.width * .78, size.height * .62, size.width * .84, size.height * .60, size.width * .91, size.height * .72);
+    canvas.drawPath(path, route);
+
+    final dot = Paint()..color = active ? const Color(0xffFF7200) : Colors.white.withOpacity(.28);
+    canvas.drawCircle(Offset(size.width * .60, size.height * .30), 7, dot);
+    canvas.drawCircle(Offset(size.width * .91, size.height * .72), 7, dot);
+  }
+
+  @override
+  bool shouldRepaint(covariant _RoutePainter oldDelegate) => oldDelegate.active != active;
 }
