@@ -3,11 +3,9 @@ import 'dart:developer';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
 
-import '../../../../helpers/images/app_images.dart';
 import '../../../../helpers/pusher_service/pusher_controller.dart';
 import '../../../../helpers/utils/navigator_methods.dart';
 import '../../auth/controller/auth_controller.dart';
@@ -35,8 +33,9 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
   static const _orange = Color(0xffFF7200);
   static const _orange2 = Color(0xffFF9200);
   static const _ink = Color(0xff161616);
-  static const _muted = Color(0xff7A7F87);
   static const _surface = Color(0xffF6F7F9);
+
+  bool _isRefreshingOrders = false;
 
   bool get _ar => context.locale.languageCode == 'ar';
   String _t(String ar, String en) => _ar ? ar : en;
@@ -56,7 +55,41 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
     await Future.wait([
       controller.getPendingDelegateHomeOrders(),
       controller.getCurrentDelegateHomeOrders(),
+      controller.getCurrentDelegateOrdersHome(),
+      controller.getOngoingDelegateOrdersHome(),
     ]);
+  }
+
+  Future<void> _refreshOrdersFromButton() async {
+    if (_isRefreshingOrders) return;
+    setState(() => _isRefreshingOrders = true);
+    try {
+      await _refreshData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(_t('تم تحديث الطلبات', 'Orders updated')),
+            duration: const Duration(milliseconds: 1200),
+          ),
+        );
+    } catch (e, s) {
+      log('Manual order refresh error: $e');
+      log('$s');
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(_t('تعذر تحديث الطلبات، حاول مرة أخرى', 'Could not refresh orders. Try again.')),
+              duration: const Duration(milliseconds: 1600),
+            ),
+          );
+      }
+    } finally {
+      if (mounted) setState(() => _isRefreshingOrders = false);
+    }
   }
 
   void _onPusher(PusherEvent event) {
@@ -105,7 +138,7 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
                 children: [
                   _header(name, area),
                   Transform.translate(
-                    offset: const Offset(0, -22),
+                    offset: const Offset(0, -18),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                       child: Column(
@@ -120,8 +153,6 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
                           ),
                           const SizedBox(height: 14),
                           const MyCurrentBalanceWidget(),
-                          const SizedBox(height: 14),
-                          _safetyBanner(),
                           const SizedBox(height: 18),
                           _quickActions(),
                           const SizedBox(height: 104),
@@ -140,13 +171,13 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
 
   Widget _header(String name, String area) {
     return SizedBox(
-      height: 238,
+      height: 162,
       child: Stack(
         children: [
           ClipPath(
             clipper: _OrangeHeaderClipper(),
             child: Container(
-              height: 226,
+              height: 154,
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
@@ -183,11 +214,11 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
                   SafeArea(
                     bottom: false,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+                      padding: const EdgeInsets.fromLTRB(18, 4, 18, 0),
                       child: Column(
                         children: [
                           SizedBox(
-                            height: 58,
+                            height: 48,
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
@@ -203,9 +234,9 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 18),
+                          const SizedBox(height: 4),
                           Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               Expanded(
                                 child: Column(
@@ -217,26 +248,26 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         color: Colors.white,
-                                        fontSize: 23,
-                                        height: 1.1,
+                                        fontSize: 19,
+                                        height: 1.05,
                                         fontWeight: FontWeight.w900,
                                       ),
                                     ),
-                                    const SizedBox(height: 7),
+                                    const SizedBox(height: 3),
                                     Text(
                                       _t('جاهز لرحلة جديدة؟', 'Ready for a new trip?'),
                                       style: TextStyle(
                                         color: Colors.white.withOpacity(.86),
-                                        fontSize: 12,
+                                        fontSize: 10,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 8),
                               if (context.read<AuthController>().profile?.walletBlock == 0)
-                                const SizedBox(width: 178, child: DelegateStatusWidget()),
+                                const SizedBox(width: 154, child: DelegateStatusWidget()),
                             ],
                           ),
                         ],
@@ -257,29 +288,29 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
       color: Colors.transparent,
       child: InkWell(
         onTap: () => NavigatorMethods.pushNamed(context, DelegateLocationScreen.routeName),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(20),
         child: Ink(
-          width: 132,
-          height: 43,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          width: 126,
+          height: 39,
+          padding: const EdgeInsets.symmetric(horizontal: 9),
           decoration: BoxDecoration(
             color: Colors.black.withOpacity(.18),
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(color: Colors.white.withOpacity(.16)),
           ),
           child: Row(
             children: [
-              const Icon(Icons.location_on_rounded, color: Colors.white, size: 18),
+              const Icon(Icons.location_on_rounded, color: Colors.white, size: 17),
               const SizedBox(width: 5),
               Expanded(
                 child: Text(
                   area,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900),
+                  style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w900),
                 ),
               ),
-              const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 17),
+              const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 16),
             ],
           ),
         ),
@@ -292,10 +323,10 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
       color: Colors.transparent,
       child: InkWell(
         onTap: () => context.read<DelegateBottomNavBarController>().updateIndex(2),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(20),
         child: Ink(
-          width: 44,
-          height: 44,
+          width: 40,
+          height: 40,
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(.16),
             shape: BoxShape.circle,
@@ -304,10 +335,10 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 27),
+              const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 25),
               Positioned(
-                top: 6,
-                right: 6,
+                top: 5,
+                right: 5,
                 child: Container(
                   width: 8,
                   height: 8,
@@ -437,7 +468,7 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
                                     OrderDetailsDelegateScreen.routeName,
                                     arguments: OrderDetailsDelegateScreenArgs(fromHome: true, orderId: order.id!),
                                   )
-                              : _refreshData,
+                              : (_isRefreshingOrders ? null : _refreshOrdersFromButton),
                           borderRadius: BorderRadius.circular(19),
                           child: Container(
                             height: 48,
@@ -449,10 +480,19 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(hasOrder ? Icons.navigation_rounded : Icons.refresh_rounded, color: Colors.white, size: 20),
+                                if (!hasOrder && _isRefreshingOrders)
+                                  const SizedBox(
+                                    width: 19,
+                                    height: 19,
+                                    child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                                  )
+                                else
+                                  Icon(hasOrder ? Icons.navigation_rounded : Icons.refresh_rounded, color: Colors.white, size: 20),
                                 const SizedBox(width: 7),
                                 Text(
-                                  hasOrder ? _t('متابعة التوصيل', 'Continue delivery') : _t('تحديث الطلبات', 'Refresh orders'),
+                                  hasOrder
+                                      ? _t('متابعة التوصيل', 'Continue delivery')
+                                      : (_isRefreshingOrders ? _t('جاري التحديث...', 'Refreshing...') : _t('تحديث الطلبات', 'Refresh orders')),
                                   style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900),
                                 ),
                               ],
@@ -529,75 +569,6 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
     );
   }
 
-  Widget _safetyBanner() {
-    return Row(
-      children: [
-        Expanded(
-          flex: 2,
-          child: Container(
-            height: 112,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xff171717), Color(0xff2C2C2C)],
-              ),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Stack(
-              children: [
-                PositionedDirectional(
-                  end: 2,
-                  bottom: -7,
-                  child: Opacity(opacity: .62, child: SvgPicture.asset(AppImages.darkMotorCycle, width: 118)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(15),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _t('سرعة أقل..\nأمان أكتر', 'Ride safe.\nArrive strong.'),
-                        style: const TextStyle(color: Colors.white, fontSize: 17, height: 1.15, fontWeight: FontWeight.w900),
-                      ),
-                      const Spacer(),
-                      Container(width: 55, height: 4, decoration: BoxDecoration(color: _orange, borderRadius: BorderRadius.circular(5))),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 9),
-        Expanded(
-          child: Container(
-            height: 112,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xffFFF2E9),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xffFFE1CB)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: const BoxDecoration(color: Color(0xffFFD9C1), shape: BoxShape.circle),
-                  child: const Icon(Icons.verified_user_outlined, color: _orange, size: 20),
-                ),
-                const Spacer(),
-                Text(_t('التزم\nبالسلامة', 'Safety\nfirst'), style: const TextStyle(color: _ink, fontSize: 13, height: 1.15, fontWeight: FontWeight.w900)),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _quickActions() {
     final actions = <_QuickAction>[
       _QuickAction(_t('الإعدادات', 'Settings'), Icons.settings_outlined, () => context.read<DelegateBottomNavBarController>().updateIndex(3)),
@@ -642,13 +613,13 @@ class _GoDriveWordmark extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Text('GO', style: TextStyle(color: Colors.white, fontSize: 25, height: .9, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
+            const Text('GO', style: TextStyle(color: Colors.white, fontSize: 23, height: .9, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
             const SizedBox(width: 5),
             Column(
               children: List.generate(
                 3,
                 (i) => Container(
-                  width: 21 - i * 3,
+                  width: 20 - i * 3,
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 3),
                   decoration: BoxDecoration(color: const Color(0xff171717), borderRadius: BorderRadius.circular(6)),
@@ -657,7 +628,7 @@ class _GoDriveWordmark extends StatelessWidget {
             ),
           ],
         ),
-        const Text('DRIVE', style: TextStyle(color: Colors.white, fontSize: 16, height: 1, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
+        const Text('DRIVE', style: TextStyle(color: Colors.white, fontSize: 15, height: 1, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
       ],
     );
   }
@@ -745,13 +716,13 @@ class _OrangeHeaderClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     final path = Path()
-      ..lineTo(0, size.height - 28)
-      ..lineTo(size.width * .17, size.height - 14)
-      ..lineTo(size.width * .34, size.height - 29)
-      ..lineTo(size.width * .52, size.height - 14)
-      ..lineTo(size.width * .70, size.height - 27)
-      ..lineTo(size.width * .86, size.height - 13)
-      ..lineTo(size.width, size.height - 25)
+      ..lineTo(0, size.height - 18)
+      ..lineTo(size.width * .17, size.height - 9)
+      ..lineTo(size.width * .34, size.height - 18)
+      ..lineTo(size.width * .52, size.height - 9)
+      ..lineTo(size.width * .70, size.height - 17)
+      ..lineTo(size.width * .86, size.height - 8)
+      ..lineTo(size.width, size.height - 16)
       ..lineTo(size.width, 0)
       ..close();
     return path;
