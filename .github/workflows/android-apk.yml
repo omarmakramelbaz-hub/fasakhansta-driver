@@ -114,7 +114,8 @@ jobs:
         run: flutter pub get
 
       - name: Verify mobile version
-        run: grep -q '^version: 1.0.23+23$' pubspec.yaml
+        run: |
+          grep -q '^version: 1.0.23+23$' pubspec.yaml
 
       - name: Build Release APK
         run: flutter build apk --release --android-skip-build-dependency-validation
