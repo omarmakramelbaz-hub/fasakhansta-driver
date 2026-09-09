@@ -41,14 +41,49 @@ class WalletController extends ChangeNotifier {
   //=============>  charging wallet  <================
   Future<void> chargingWallet({required dynamic amount, required Function(String paymentUrl) onSuccess}) async {
     NavigatorMethods.loading();
-    FormData body = FormData.fromMap({'amount': amount, 'payment_method': _selectedPayment});
-    final response = await ApiHelper.instance.post(Urls.chargingWallet, body: body);
-    NavigatorMethods.loadingOff();
-    if (response.state == ResponseState.complete) {
-      CommonMethods.showToast(message: response.data['message']);
-      onSuccess.call(response.data['data']['link']);
-    } else {
-      CommonMethods.showError(message: response.data['message'], apiResponse: response);
+    try {
+      final FormData body = FormData.fromMap({
+        'amount': amount,
+        'payment_method': _selectedPayment,
+      });
+      final response = await ApiHelper.instance.post(Urls.chargingWallet, body: body);
+
+      if (response.state == ResponseState.complete) {
+        final dynamic payload = response.data;
+        final dynamic data = payload is Map ? payload['data'] : null;
+        final String link = data is Map ? (data['link']?.toString().trim() ?? '') : '';
+        final Uri? uri = link.isEmpty ? null : Uri.tryParse(link);
+        final bool validLink = uri != null &&
+            uri.hasScheme &&
+            (uri.scheme.toLowerCase() == 'http' || uri.scheme.toLowerCase() == 'https');
+
+        if (!validLink) {
+          final String serverMessage = payload is Map ? (payload['message']?.toString().trim() ?? '') : '';
+          CommonMethods.showError(
+            message: serverMessage.isNotEmpty
+                ? serverMessage
+                : 'تعذر إنشاء رابط الدفع. حاول مرة أخرى.',
+          );
+          return;
+        }
+
+        final String serverMessage = payload is Map ? (payload['message']?.toString().trim() ?? '') : '';
+        if (serverMessage.isNotEmpty) {
+          CommonMethods.showToast(message: serverMessage);
+        }
+        onSuccess.call(link);
+      } else {
+        final dynamic payload = response.data;
+        final String serverMessage = payload is Map ? (payload['message']?.toString().trim() ?? '') : '';
+        CommonMethods.showError(
+          message: serverMessage.isNotEmpty ? serverMessage : 'تعذر بدء عملية الشحن. حاول مرة أخرى.',
+          apiResponse: response,
+        );
+      }
+    } catch (_) {
+      CommonMethods.showError(message: 'حدث خطأ أثناء بدء عملية الشحن. حاول مرة أخرى.');
+    } finally {
+      NavigatorMethods.loadingOff();
     }
   }
 
