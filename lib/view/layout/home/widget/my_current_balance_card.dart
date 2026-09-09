@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
 
+import '../../../../helpers/images/app_images.dart';
 import '../../../../helpers/locale/app_locale_key.dart';
 import '../../../../helpers/pusher_service/pusher_controller.dart';
 import '../../../../helpers/theme/app_colors.dart';
@@ -14,7 +15,6 @@ import '../../../custom_widgets/custom_image/custom_image.dart';
 import '../../../custom_widgets/custom_loading/custom_shimmer.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../../wallet/screen/wallet_screen.dart';
-import '../../../../helpers/images/app_images.dart';
 
 class MyCurrentBalanceWidget extends StatefulWidget {
   const MyCurrentBalanceWidget({super.key});
@@ -80,8 +80,7 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
 
   @override
   Widget build(BuildContext context) {
-    const navy = Color(0xff082A4D);
-    const orange = Color(0xffFD7201);
+    const orange = Color(0xffFF7200);
 
     return Column(
       children: [
@@ -89,105 +88,92 @@ class _MyCurrentBalanceWidgetState extends State<MyCurrentBalanceWidget> {
           color: Colors.transparent,
           child: InkWell(
             onTap: () => NavigatorMethods.pushNamed(context, WalletScreen.routeName),
-            borderRadius: BorderRadius.circular(21),
+            borderRadius: BorderRadius.circular(27),
             child: Ink(
               width: double.infinity,
-              height: 108,
+              height: 126,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(21),
+                borderRadius: BorderRadius.circular(27),
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xff0D456F), navy],
+                  colors: [Color(0xff151515), Color(0xff242424)],
                 ),
-                boxShadow: [BoxShadow(color: navy.withOpacity(.16), blurRadius: 20, offset: const Offset(0, 8))],
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(.16), blurRadius: 24, offset: const Offset(0, 11))],
               ),
               child: Stack(
                 children: [
                   Positioned(
-                    right: -35,
-                    bottom: -48,
+                    left: -22,
+                    top: -46,
                     child: Container(
                       width: 135,
                       height: 135,
-                      decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xff2F80ED).withOpacity(.08)),
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: orange.withOpacity(.10)),
                     ),
                   ),
                   Positioned(
-                    left: -22,
-                    top: -42,
+                    right: -35,
+                    bottom: -60,
                     child: Container(
-                      width: 125,
-                      height: 125,
+                      width: 150,
+                      height: 150,
                       decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(.035)),
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     child: Row(
                       children: [
                         Container(
-                          width: 72,
-                          height: 72,
+                          width: 78,
+                          height: 78,
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(.06),
-                            borderRadius: BorderRadius.circular(20),
+                            color: const Color(0xff2B2B2B),
+                            borderRadius: BorderRadius.circular(22),
                             border: Border.all(color: Colors.white.withOpacity(.08)),
                           ),
                           alignment: Alignment.center,
                           child: Image.asset(
                             AppImages.walletImage,
-                            width: 60,
-                            height: 60,
+                            width: 66,
+                            height: 66,
                             fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 38),
+                            errorBuilder: (_, __, ___) => const Icon(Icons.account_balance_wallet_rounded, color: orange, size: 42),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.account_balance_wallet_outlined, color: Colors.white, size: 17),
-                                  const SizedBox(width: 6),
-                                  Text(_t('محفظتي', 'My wallet'), style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900)),
-                                ],
-                              ),
-                              const SizedBox(height: 5),
-                              Text(AppLocaleKey.myCurrentBalance.tr(), style: TextStyle(color: Colors.white.withOpacity(.68), fontSize: 10.5, fontWeight: FontWeight.w600)),
-                              const SizedBox(height: 2),
+                              Text(_t('محفظتي', 'My wallet'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900)),
+                              const SizedBox(height: 3),
+                              Text(AppLocaleKey.myCurrentBalance.tr(), style: TextStyle(color: Colors.white.withOpacity(.55), fontSize: 9.5, fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 4),
                               balance == null
-                                  ? const CustomShimmer(height: 23, width: 94, radius: 7, shimmerColor: Color(0xffFF8A08))
+                                  ? const CustomShimmer(height: 25, width: 100, radius: 8, shimmerColor: orange)
                                   : FittedBox(
                                       fit: BoxFit.scaleDown,
                                       alignment: AlignmentDirectional.centerStart,
                                       child: Text(
                                         AppLocaleKey.pound.tr().replaceAll('{}', pusherWalletAmount ?? balance?.toStringAsFixed(0) ?? '0'),
-                                        style: const TextStyle(color: Colors.white, fontSize: 27, height: 1, fontWeight: FontWeight.w900),
+                                        style: const TextStyle(color: Colors.white, fontSize: 29, height: 1, fontWeight: FontWeight.w900),
                                       ),
                                     ),
                             ],
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         Container(
-                          height: 40,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(.06),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: Colors.white.withOpacity(.22)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(_t('عرض المحفظة', 'View wallet'), style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800)),
-                              const SizedBox(width: 4),
-                              Icon(context.locale.languageCode == 'ar' ? Icons.chevron_left_rounded : Icons.chevron_right_rounded, color: orange, size: 18),
-                            ],
+                          width: 46,
+                          height: 46,
+                          decoration: const BoxDecoration(color: orange, shape: BoxShape.circle),
+                          child: Icon(
+                            context.locale.languageCode == 'ar' ? Icons.arrow_back_rounded : Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                            size: 22,
                           ),
                         ),
                       ],
