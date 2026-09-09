@@ -43,99 +43,83 @@ class _DelegateStatusWidgetState extends State<DelegateStatusWidget> {
 
   @override
   Widget build(BuildContext context) {
-    const navy = Color(0xff082A4D);
     final active = selectedStatus == DelegateStatus.active;
+
     return ChangeNotifierProvider(
       create: (_) => DelegateBottomNavBarController(),
       child: Consumer<DelegateBottomNavBarController>(
         builder: (context, controller, _) {
-          return Container(
-            height: 48,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xffFCFDFE),
-              borderRadius: BorderRadius.circular(17),
-              border: Border.all(color: const Color(0xffE7ECF1)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: active ? const Color(0xffE8F9F1) : const Color(0xffFFF0E3),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Container(
-                    width: 11,
-                    height: 11,
-                    decoration: BoxDecoration(
-                      color: active ? const Color(0xff15A869) : const Color(0xffFD7201),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _changeStatus(active ? DelegateStatus.inactive : DelegateStatus.active, controller),
+              borderRadius: BorderRadius.circular(24),
+              child: Ink(
+                height: 46,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.white.withOpacity(.9)),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(.11), blurRadius: 18, offset: const Offset(0, 8))],
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(AppLocaleKey.delegateStatus.tr(), style: const TextStyle(color: navy, fontSize: 13.5, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 1),
-                      Text(
-                        active
-                            ? (context.locale.languageCode == 'ar' ? 'أنت متاح لاستقبال الطلبات' : 'Available for orders')
-                            : (context.locale.languageCode == 'ar' ? 'أنت غير متاح حالياً' : 'Currently unavailable'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Color(0xff7D8490), fontSize: 8.8, fontWeight: FontWeight.w500),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: active ? const Color(0xff12AE69) : const Color(0xffA9AFB6),
+                        shape: BoxShape.circle,
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 7),
-                InkWell(
-                  onTap: () => _changeStatus(active ? DelegateStatus.inactive : DelegateStatus.active, controller),
-                  borderRadius: BorderRadius.circular(20),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    width: 92,
-                    height: 36,
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      gradient: active
-                          ? const LinearGradient(colors: [Color(0xff20BE7C), Color(0xff139B63)])
-                          : const LinearGradient(colors: [Color(0xffE7EBEF), Color(0xffDCE2E8)]),
-                      borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Stack(
-                      children: [
-                        Align(
-                          alignment: active ? Alignment.centerLeft : Alignment.centerRight,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            child: Text(
-                              active ? AppLocaleKey.active.tr() : AppLocaleKey.inactive.tr(),
-                              style: TextStyle(color: active ? Colors.white : const Color(0xff69717C), fontSize: 11, fontWeight: FontWeight.w900),
-                            ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            active
+                                ? (context.locale.languageCode == 'ar' ? 'متصل الآن' : 'Online now')
+                                : (context.locale.languageCode == 'ar' ? 'غير متصل' : 'Offline'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Color(0xff171717), fontSize: 11.5, fontWeight: FontWeight.w900),
                           ),
-                        ),
-                        AnimatedAlign(
-                          duration: const Duration(milliseconds: 220),
-                          alignment: active ? Alignment.centerRight : Alignment.centerLeft,
-                          child: Container(
-                            width: 28,
-                            height: 28,
-                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                          Text(
+                            active ? AppLocaleKey.active.tr() : AppLocaleKey.inactive.tr(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Color(0xff7A7F87), fontSize: 8, fontWeight: FontWeight.w600),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      width: 41,
+                      height: 24,
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: active ? const Color(0xff16B66D) : const Color(0xffD9DDE2),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: AnimatedAlign(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        alignment: active ? Alignment.centerRight : Alignment.centerLeft,
+                        child: Container(
+                          width: 18,
+                          height: 18,
+                          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           );
         },
