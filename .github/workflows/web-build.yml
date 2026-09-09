@@ -30,63 +30,52 @@ jobs:
           from pathlib import Path
 
           path = Path('lib/view/layout/home/screen/home_delegate_screen.dart')
-          text = path.read_text(encoding='utf-8')
+          lines = path.read_text(encoding='utf-8').splitlines()
 
-          old_height = '                    height: 690,'
-          new_height = '                    height: c.maxHeight * 390 / (c.maxWidth < 390 ? c.maxWidth : 390),'
-          if old_height in text:
-              text = text.replace(old_height, new_height, 1)
+          # Make the design canvas follow the real viewport height on every width.
+          for i, line in enumerate(lines):
+              if line.strip() == 'height: 690,':
+                  indent = line[:len(line) - len(line.lstrip())]
+                  lines[i] = indent + 'height: c.maxHeight * 390 / (c.maxWidth < 390 ? c.maxWidth : 390),'
+                  break
 
-          old_block = '''                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              child: Column(
-                                children: [
-                                  _sectionTitle(
-                                    _t('طلبات اليوم', "Today's orders"),
-                                    _t('عرض الكل', 'View all'),
-                                    () => context.read<DelegateBottomNavBarController>().updateIndex(1),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  _stats(controller),
-                                  const SizedBox(height: 8),
-                                  _currentOrder(currentOrder),
-                                  const SizedBox(height: 8),
-                                  const MyCurrentBalanceWidget(),
-                                  const SizedBox(height: 8),
-                                  _quickActions(),
-                                ],
-                              ),
-                            ),'''
+          # Find the dashboard content block by its real widgets instead of brittle indentation matching.
+          section_idx = next(i for i, line in enumerate(lines) if '_sectionTitle(' in line)
+          start = next(i for i in range(section_idx, -1, -1) if lines[i].strip() == 'Padding(')
+          quick_idx = next(i for i in range(section_idx, len(lines)) if lines[i].strip() == '_quickActions(),')
+          end = quick_idx
+          while end + 1 < len(lines):
+              end += 1
+              if lines[end].strip() == '),' and lines[end - 1].strip() == '),':
+                  break
 
-          new_block = '''                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                                child: Column(
-                                  children: [
-                                    _sectionTitle(
-                                      _t('طلبات اليوم', "Today's orders"),
-                                      _t('عرض الكل', 'View all'),
-                                      () => context.read<DelegateBottomNavBarController>().updateIndex(1),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    _stats(controller),
-                                    const Spacer(),
-                                    _currentOrder(currentOrder),
-                                    const Spacer(),
-                                    const MyCurrentBalanceWidget(),
-                                    const Spacer(),
-                                    _quickActions(),
-                                  ],
-                                ),
-                              ),
-                            ),'''
+          replacement = [
+              '                            Expanded(',
+              '                              child: Padding(',
+              '                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),',
+              '                                child: Column(',
+              '                                  children: [',
+              '                                    _sectionTitle(',
+              '                                      _t(\'طلبات اليوم\', "Today\'s orders"),',
+              '                                      _t(\'عرض الكل\', \'View all\'),',
+              '                                      () => context.read<DelegateBottomNavBarController>().updateIndex(1),',
+              '                                    ),',
+              '                                    const SizedBox(height: 6),',
+              '                                    _stats(controller),',
+              '                                    const Spacer(),',
+              '                                    _currentOrder(currentOrder),',
+              '                                    const Spacer(),',
+              '                                    const MyCurrentBalanceWidget(),',
+              '                                    const Spacer(),',
+              '                                    _quickActions(),',
+              '                                  ],',
+              '                                ),',
+              '                              ),',
+              '                            ),',
+          ]
 
-          if old_block in text:
-              text = text.replace(old_block, new_block, 1)
-          elif new_block not in text:
-              raise SystemExit('Dashboard content block did not match expected source')
-
-          path.write_text(text, encoding='utf-8')
+          lines[start:end + 1] = replacement
+          path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
           PY
 
           if ! git diff --quiet -- lib/view/layout/home/screen/home_delegate_screen.dart; then
