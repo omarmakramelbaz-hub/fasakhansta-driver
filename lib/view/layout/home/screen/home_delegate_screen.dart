@@ -107,31 +107,33 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
                   alignment: Alignment.topCenter,
                   child: SizedBox(
                     width: 390,
-                    height: 690,
+                    height: c.maxHeight * 390 / (c.maxWidth < 390 ? c.maxWidth : 390),
                     child: Stack(
                       children: [
                         Column(
                           children: [
                             _hero(area),
                             const SizedBox(height: 83),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              child: Column(
-                                children: [
-                                  _sectionTitle(
-                                    _t('طلبات اليوم', "Today's orders"),
-                                    _t('عرض الكل', 'View all'),
-                                    () => context.read<DelegateBottomNavBarController>().updateIndex(1),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  _stats(controller),
-                                  const SizedBox(height: 8),
-                                  _currentOrder(currentOrder),
-                                  const SizedBox(height: 8),
-                                  const MyCurrentBalanceWidget(),
-                                  const SizedBox(height: 8),
-                                  _quickActions(),
-                                ],
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                                child: Column(
+                                  children: [
+                                    _sectionTitle(
+                                      _t('طلبات اليوم', "Today's orders"),
+                                      _t('عرض الكل', 'View all'),
+                                      () => context.read<DelegateBottomNavBarController>().updateIndex(1),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    _stats(controller),
+                                    const Spacer(),
+                                    _currentOrder(currentOrder),
+                                    const Spacer(),
+                                    const MyCurrentBalanceWidget(),
+                                    const Spacer(),
+                                    _quickActions(),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
