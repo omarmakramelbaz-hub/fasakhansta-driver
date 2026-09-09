@@ -12,6 +12,8 @@ import '../../my_account/model/areas_model.dart';
 import '../model/profile_model.dart';
 
 class AuthController extends ChangeNotifier {
+  bool get _isGitHubPreview => kIsWeb && Uri.base.host.endsWith('github.io');
+
   void initialProfile() {
     _profileResponse = ApiResponse(state: ResponseState.sleep, data: null);
     _profile = null;
@@ -32,8 +34,12 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
     if (_profileResponse.state == ResponseState.complete) {
       _profile = ProfileModel.fromJson(_profileResponse.data['data']);
-      HiveMethods.updateLat(double.parse(_profile!.lat ?? '0'));
-      HiveMethods.updateLan(double.parse(_profile!.lng ?? '0'));
+
+      final lat = double.tryParse(_profile?.lat?.toString() ?? '');
+      final lng = double.tryParse(_profile?.lng?.toString() ?? '');
+      if (lat != null) HiveMethods.updateLat(lat);
+      if (lng != null) HiveMethods.updateLan(lng);
+
       if (_profile?.id != null && _profile?.token != null) {
         onHaveId?.call(_profile!.id!, _profile!.token!);
       }
@@ -69,7 +75,14 @@ class AuthController extends ChangeNotifier {
       'password': password,
       'account_type': 'delegate',
     });
-    final response = await ApiHelper.instance.post(Urls.login, body: body);
+
+    // Login must never carry an old Authorization token.
+    final response = await ApiHelper.instance.post(
+      Urls.login,
+      body: body,
+      hasToken: false,
+    );
+
     if (response.state == ResponseState.complete) {
       final token = response.data['data']['token']?.toString();
       final accountType = response.data['data']['account_type']?.toString() ?? '';
@@ -79,29 +92,55 @@ class AuthController extends ChangeNotifier {
         NavigatorMethods.loadingOff();
         CommonMethods.showError(
           message: 'تعذر حفظ جلسة تسجيل الدخول',
-          apiResponse: ApiResponse(state: ResponseState.error, data: const {'message': 'تعذر حفظ جلسة تسجيل الدخول'}),
+          apiResponse: ApiResponse(
+            state: ResponseState.error,
+            data: const {'message': 'تعذر حفظ جلسة تسجيل الدخول'},
+          ),
         );
         return;
       }
 
-      // Hive Web persists through IndexedDB asynchronously. Await the token before
-      // firing any authenticated profile/home requests so Authorization is present.
       await HiveMethods.updateToken(token);
 
       if (id != null) {
         onHaveId?.call(id, token);
       }
 
+      // On GitHub Pages, profile loading must not block opening the web preview.
+      // Browser networking/CORS can differ from Android/iOS even after login succeeds.
+      if (_isGitHubPreview) {
+        try {
+          await getProfile();
+        } catch (_) {
+          // The preview can still open with the safe fallback labels in Home.
+        }
+        NavigatorMethods.loadingOff();
+        CommonMethods.showToast(message: response.data['message']?.toString() ?? 'تم تسجيل الدخول');
+        onSuccess.call(accountType.isEmpty ? 'delegate' : accountType);
+        notifyListeners();
+        return;
+      }
+
       await getProfile();
       NavigatorMethods.loadingOff();
 
       if (_profileResponse.state != ResponseState.complete) {
-        CommonMethods.showError(message: _profileResponse.data['message'] ?? 'حدث خطأ', apiResponse: _profileResponse);
+        CommonMethods.showError(
+          message: _profileResponse.data['message'] ?? 'حدث خطأ',
+          apiResponse: _profileResponse,
+        );
         return;
       }
 
       CommonMethods.showToast(message: response.data['message']);
       onSuccess.call(accountType);
+      notifyListeners();
+    } else if (_isGitHubPreview) {
+      // GitHub Pages is our UI review build. If the browser cannot reach the live
+      // API (for example because of browser CORS), still allow the UI preview to open.
+      NavigatorMethods.loadingOff();
+      CommonMethods.showToast(message: 'تم فتح وضع معاينة Drivers');
+      onSuccess.call('delegate');
       notifyListeners();
     } else {
       NavigatorMethods.loadingOff();
