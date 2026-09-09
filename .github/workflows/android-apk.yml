@@ -66,6 +66,7 @@ jobs:
           app = Path('android/app/build.gradle')
           a = app.read_text(encoding='utf-8')
           a = a.replace('compileSdk = 35', 'compileSdk = 36')
+          a = a.replace('targetSdk = 35', 'targetSdk = 36')
           a = a.replace('buildToolsVersion "23.0.1"\n', '')
           a = a.replace('ndkVersion "27.0.12077973"', 'ndkVersion "28.2.13676358"')
           app.write_text(a, encoding='utf-8')
@@ -74,6 +75,7 @@ jobs:
           grep -q 'version "2.3.0"' android/settings.gradle
           grep -q 'gradle-8.14.3-all.zip' android/gradle/wrapper/gradle-wrapper.properties
           grep -q 'compileSdk = 36' android/app/build.gradle
+          grep -q 'targetSdk = 36' android/app/build.gradle
           grep -q '28.2.13676358' android/app/build.gradle
 
       - name: Install Dependencies
