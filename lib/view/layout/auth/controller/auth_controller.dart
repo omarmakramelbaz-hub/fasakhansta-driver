@@ -12,8 +12,6 @@ import '../../my_account/model/areas_model.dart';
 import '../model/profile_model.dart';
 
 class AuthController extends ChangeNotifier {
-  bool get _isGitHubPreview => kIsWeb && Uri.base.host.endsWith('github.io');
-
   void initialProfile() {
     _profileResponse = ApiResponse(state: ResponseState.sleep, data: null);
     _profile = null;
@@ -32,8 +30,23 @@ class AuthController extends ChangeNotifier {
     _profileResponse = ApiResponse(state: ResponseState.loading, data: null);
     _profileResponse = await ApiHelper.instance.get(Urls.profile);
     notifyListeners();
+
     if (_profileResponse.state == ResponseState.complete) {
-      _profile = ProfileModel.fromJson(_profileResponse.data['data']);
+      final dynamic payload = _profileResponse.data;
+      final dynamic data = payload is Map ? payload['data'] : null;
+      if (data is Map<String, dynamic>) {
+        _profile = ProfileModel.fromJson(data);
+      } else if (data is Map) {
+        _profile = ProfileModel.fromJson(Map<String, dynamic>.from(data));
+      } else {
+        _profile = null;
+        _profileResponse = ApiResponse(
+          state: ResponseState.error,
+          data: const {'message': 'تعذر تحميل بيانات الحساب'},
+        );
+        notifyListeners();
+        return;
+      }
 
       final lat = double.tryParse(_profile?.lat?.toString() ?? '');
       final lng = double.tryParse(_profile?.lng?.toString() ?? '');
@@ -46,6 +59,7 @@ class AuthController extends ChangeNotifier {
       notifyListeners();
       onSuccess?.call();
     }
+
     if (_profileResponse.state == ResponseState.unauthorized) {
       notifyListeners();
       onUnauthenticated?.call();
@@ -69,14 +83,14 @@ class AuthController extends ChangeNotifier {
       }
     }
 
-    FormData body = FormData.fromMap({
+    final FormData body = FormData.fromMap({
       'mobile': mobile,
       'fcm_id': fcmId,
       'password': password,
       'account_type': 'delegate',
     });
 
-    // Login must never carry an old Authorization token.
+    // Login must not carry a stale bearer token from an older session.
     final response = await ApiHelper.instance.post(
       Urls.login,
       body: body,
@@ -84,68 +98,49 @@ class AuthController extends ChangeNotifier {
     );
 
     if (response.state == ResponseState.complete) {
-      final token = response.data['data']['token']?.toString();
-      final accountType = response.data['data']['account_type']?.toString() ?? '';
-      final id = response.data['data']['id'];
+      final dynamic payload = response.data;
+      final dynamic data = payload is Map ? payload['data'] : null;
+      final String token = data is Map ? (data['token']?.toString().trim() ?? '') : '';
+      final String accountType = data is Map ? (data['account_type']?.toString().trim() ?? '') : '';
+      final dynamic id = data is Map ? data['id'] : null;
 
-      if (token == null || token.isEmpty) {
+      if (token.isEmpty) {
         NavigatorMethods.loadingOff();
-        CommonMethods.showError(
-          message: 'تعذر حفظ جلسة تسجيل الدخول',
-          apiResponse: ApiResponse(
-            state: ResponseState.error,
-            data: const {'message': 'تعذر حفظ جلسة تسجيل الدخول'},
-          ),
-        );
+        CommonMethods.showError(message: 'تعذر حفظ جلسة تسجيل الدخول');
         return;
       }
 
+      // This await is essential on Flutter Web: wallet/profile/report requests must
+      // not start until IndexedDB has persisted the bearer token.
       await HiveMethods.updateToken(token);
 
-      if (id != null) {
+      if (id is int) {
         onHaveId?.call(id, token);
+      } else if (id != null) {
+        final parsedId = int.tryParse(id.toString());
+        if (parsedId != null) onHaveId?.call(parsedId, token);
       }
 
-      // On GitHub Pages, profile loading must not block opening the web preview.
-      // Browser networking/CORS can differ from Android/iOS even after login succeeds.
-      if (_isGitHubPreview) {
-        try {
-          await getProfile();
-        } catch (_) {
-          // The preview can still open with the safe fallback labels in Home.
-        }
-        NavigatorMethods.loadingOff();
-        CommonMethods.showToast(message: response.data['message']?.toString() ?? 'تم تسجيل الدخول');
-        onSuccess.call(accountType.isEmpty ? 'delegate' : accountType);
-        notifyListeners();
-        return;
-      }
-
-      await getProfile();
       NavigatorMethods.loadingOff();
+      CommonMethods.showToast(
+        message: payload is Map ? (payload['message']?.toString() ?? 'تم تسجيل الدخول') : 'تم تسجيل الدخول',
+      );
 
-      if (_profileResponse.state != ResponseState.complete) {
-        CommonMethods.showError(
-          message: _profileResponse.data['message'] ?? 'حدث خطأ',
-          apiResponse: _profileResponse,
-        );
-        return;
-      }
-
-      CommonMethods.showToast(message: response.data['message']);
-      onSuccess.call(accountType);
+      // Open the authenticated app immediately. Profile is refreshed afterwards;
+      // it must never block wallet/orders/reports from using the valid token.
+      onSuccess.call(accountType.isEmpty ? 'delegate' : accountType);
       notifyListeners();
-    } else if (_isGitHubPreview) {
-      // GitHub Pages is our UI review build. If the browser cannot reach the live
-      // API (for example because of browser CORS), still allow the UI preview to open.
-      NavigatorMethods.loadingOff();
-      CommonMethods.showToast(message: 'تم فتح وضع معاينة Drivers');
-      onSuccess.call('delegate');
-      notifyListeners();
-    } else {
-      NavigatorMethods.loadingOff();
-      CommonMethods.showError(message: response.data['message'], apiResponse: response);
+      getProfile();
+      return;
     }
+
+    NavigatorMethods.loadingOff();
+    final dynamic payload = response.data;
+    final String message = payload is Map ? (payload['message']?.toString().trim() ?? '') : '';
+    CommonMethods.showError(
+      message: message.isNotEmpty ? message : 'تعذر تسجيل الدخول. حاول مرة أخرى.',
+      apiResponse: response,
+    );
   }
 
   Future<void> logout({required VoidCallback onSuccess}) async {
