@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -21,70 +21,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - name: Fix dashboard viewport spacing in source
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('lib/view/layout/home/screen/home_delegate_screen.dart')
-          lines = path.read_text(encoding='utf-8').splitlines()
-
-          # Make the design canvas follow the real viewport height on every width.
-          for i, line in enumerate(lines):
-              if line.strip() == 'height: 690,':
-                  indent = line[:len(line) - len(line.lstrip())]
-                  lines[i] = indent + 'height: c.maxHeight * 390 / (c.maxWidth < 390 ? c.maxWidth : 390),'
-                  break
-
-          # Find the dashboard content block by its real widgets instead of brittle indentation matching.
-          section_idx = next(i for i, line in enumerate(lines) if '_sectionTitle(' in line)
-          start = next(i for i in range(section_idx, -1, -1) if lines[i].strip() == 'Padding(')
-          quick_idx = next(i for i in range(section_idx, len(lines)) if lines[i].strip() == '_quickActions(),')
-          end = quick_idx
-          while end + 1 < len(lines):
-              end += 1
-              if lines[end].strip() == '),' and lines[end - 1].strip() == '),':
-                  break
-
-          replacement = [
-              '                            Expanded(',
-              '                              child: Padding(',
-              '                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),',
-              '                                child: Column(',
-              '                                  children: [',
-              '                                    _sectionTitle(',
-              '                                      _t(\'طلبات اليوم\', "Today\'s orders"),',
-              '                                      _t(\'عرض الكل\', \'View all\'),',
-              '                                      () => context.read<DelegateBottomNavBarController>().updateIndex(1),',
-              '                                    ),',
-              '                                    const SizedBox(height: 6),',
-              '                                    _stats(controller),',
-              '                                    const Spacer(),',
-              '                                    _currentOrder(currentOrder),',
-              '                                    const Spacer(),',
-              '                                    const MyCurrentBalanceWidget(),',
-              '                                    const Spacer(),',
-              '                                    _quickActions(),',
-              '                                  ],',
-              '                                ),',
-              '                              ),',
-              '                            ),',
-          ]
-
-          lines[start:end + 1] = replacement
-          path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
-          PY
-
-          if ! git diff --quiet -- lib/view/layout/home/screen/home_delegate_screen.dart; then
-            git config user.name "omarmakramelbaz-hub"
-            git config user.email "omarmakramelbaz@gmail.com"
-            git add lib/view/layout/home/screen/home_delegate_screen.dart
-            git commit -m "Fix dashboard viewport spacing [skip ci]"
-            git push origin HEAD:main
-          fi
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
