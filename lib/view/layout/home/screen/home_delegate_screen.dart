@@ -138,7 +138,7 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
                 children: [
                   _header(name, area),
                   Transform.translate(
-                    offset: const Offset(0, -18),
+                    offset: const Offset(0, 0),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                       child: Column(
@@ -436,7 +436,7 @@ class _HomeDelegateScreenState extends State<HomeDelegateScreen> {
                       ),
                     ],
                   ),
-                  SizedBox(height: hasOrder ? 16 : 34),
+                  const SizedBox(height: 16),
                   Text(
                     hasOrder ? '#${order.orderNo ?? order.id ?? ''}' : _t('بانتظار طلب جديد', 'Waiting for a new order'),
                     maxLines: 1,
