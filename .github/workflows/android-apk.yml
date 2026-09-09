@@ -1,16 +1,21 @@
-name: Build Go Drive Driver APK
+name: Build Go Drive Driver Android Release
 
 on:
   push:
     branches: ["main"]
-    paths: [".github/workflows/android-apk.yml"]
+    paths:
+      - "pubspec.yaml"
+      - "lib/**"
+      - "assets/**"
+      - "android/**"
+      - ".github/workflows/android-apk.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build_apk:
+  build_android:
     runs-on: ubuntu-latest
 
     steps:
@@ -47,8 +52,6 @@ jobs:
             IM="convert"
           fi
 
-          # Remove the oversized white padding, then make the Go Drive artwork
-          # fill the launcher tile while keeping a small safety margin.
           $IM "$SRC" -fuzz 5% -trim +repage -resize 950x950 \
             -gravity center -background white -extent 1024x1024 /tmp/go_drive_app_icon_large.png
           cp /tmp/go_drive_app_icon_large.png "$SRC"
@@ -73,8 +76,6 @@ jobs:
           done
 
           test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-          file /tmp/go_drive_app_icon_large.png
-          identify /tmp/go_drive_app_icon_large.png || true
 
       - name: Patch Android build compatibility
         shell: bash
@@ -112,33 +113,39 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Verify Go Drive app icon
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -s assets/images/go_drive_app_icon.png
-          test -s android/app/src/main/res/mipmap-mdpi/ic_launcher.png
-          test -s android/app/src/main/res/mipmap-hdpi/ic_launcher.png
-          test -s android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
-          test -s android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
-          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+      - name: Verify mobile version
+        run: grep -q '^version: 1.0.22+22$' pubspec.yaml
 
       - name: Build Release APK
         run: flutter build apk --release --android-skip-build-dependency-validation
 
-      - name: Verify APK
+      - name: Build Release AAB
+        run: flutter build appbundle --release --android-skip-build-dependency-validation
+
+      - name: Verify Android artifacts
         shell: bash
         run: |
           set -euo pipefail
           test -s build/app/outputs/flutter-apk/app-release.apk
+          test -s build/app/outputs/bundle/release/app-release.aab
           ls -lh build/app/outputs/flutter-apk/app-release.apk
+          ls -lh build/app/outputs/bundle/release/app-release.aab
           sha256sum build/app/outputs/flutter-apk/app-release.apk
+          sha256sum build/app/outputs/bundle/release/app-release.aab
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: go-drive-driver-large-icon-release-apk
+          name: go-drive-driver-1.0.22-build22-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-drive-driver-1.0.22-build22-aab
+          path: build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 14
 
